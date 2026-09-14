@@ -64,6 +64,28 @@ void test_segregated_size_class_index(void) {
   TEST_ASSERT_EQUAL_INT(9, get_size_class_index(64000));
 }
 
+void test_coalescing(void) {
+  void *p1 = my_malloc(64);
+  void *p2 = my_malloc(64);
+  void *p3 = my_malloc(64);
+
+  TEST_ASSERT_NOT_NULL(p1);
+  TEST_ASSERT_NOT_NULL(p2);
+  TEST_ASSERT_NOT_NULL(p3);
+
+  // Free the first and third block
+  my_free(p1);
+  my_free(p3);
+
+  // Free the middle block, this should trigger coalescing of p1, p2, and p3
+  my_free(p2);
+
+  // Allocate a block large enough to require coalescing of p1, p2, and p3
+  void *p4 = my_malloc(192);
+  TEST_ASSERT_NOT_NULL(p4);
+  my_free(p4);
+}
+
 int main(void) {
   UnityBegin("test_allocator.c");
   RUN_TEST(test_my_malloc_small);
@@ -71,5 +93,6 @@ int main(void) {
   RUN_TEST(test_my_calloc_zeroes_memory);
   RUN_TEST(test_my_realloc_growth);
   RUN_TEST(test_segregated_size_class_index);
+  RUN_TEST(test_coalescing);
   return UnityEnd();
 }

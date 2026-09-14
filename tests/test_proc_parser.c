@@ -11,6 +11,8 @@ void test_proc_parser_cpu(void) {
   TEST_ASSERT_TRUE(cpu.core_count >= 1);
   TEST_ASSERT_TRUE(cpu.total_usage_pct >= 0.0f &&
                    cpu.total_usage_pct <= 100.0f);
+  TEST_ASSERT_TRUE(cpu.user_pct >= 0.0f && cpu.user_pct <= 100.0f);
+  TEST_ASSERT_TRUE(cpu.system_pct >= 0.0f && cpu.system_pct <= 100.0f);
 }
 
 void test_proc_parser_mem(void) {
@@ -20,6 +22,8 @@ void test_proc_parser_mem(void) {
   TEST_ASSERT_TRUE(mem.mem_total_kb > 0);
   TEST_ASSERT_TRUE(mem.mem_available_kb > 0);
   TEST_ASSERT_TRUE(mem.mem_usage_pct >= 0.0f && mem.mem_usage_pct <= 100.0f);
+  TEST_ASSERT_TRUE(mem.buffers_kb > 0 || mem.buffers_kb == 0);
+  TEST_ASSERT_TRUE(mem.cached_kb > 0 || mem.cached_kb == 0);
 }
 
 void test_proc_parser_snapshot(void) {

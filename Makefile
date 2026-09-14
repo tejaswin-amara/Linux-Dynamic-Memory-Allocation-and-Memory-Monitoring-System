@@ -20,6 +20,7 @@ LIB_ALLOC := libmyalloc.so
 BIN_MONITOR := mem_monitor
 TEST_ALLOC := test_allocator
 TEST_PARSER := test_proc_parser
+TEST_SIGNAL := test_signal_handler
 
 # Libraries
 LDLIBS_MONITOR := -lncurses -pthread
@@ -55,7 +56,7 @@ $(BIN_MONITOR): $(SRC_MONITOR_DIR)/main.c $(SRC_MONITOR_DIR)/proc_parser.c \
 # Sanitizers (ASan / UBSan)
 # ------------------------------------------------------------------------------
 asan: CFLAGS += $(ASAN_FLAGS)
-asan: directories $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER)
+asan: directories $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL)
 	@echo "==> Built with AddressSanitizer and UndefinedBehaviorSanitizer"
 
 # ------------------------------------------------------------------------------
@@ -71,19 +72,28 @@ $(TEST_PARSER): $(TESTS_DIR)/test_proc_parser.c $(SRC_MONITOR_DIR)/proc_parser.c
 	@echo "==> Building Proc Parser Unit Tests: $@"
 	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
 
-test: $(TEST_ALLOC) $(TEST_PARSER)
+$(TEST_SIGNAL): $(TESTS_DIR)/test_signal_handler.c $(SRC_MONITOR_DIR)/signal_handler.c \
+                $(TESTS_DIR)/unity/unity.c
+	@echo "==> Building Signal Handler Unit Tests: $@"
+	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
+
+test: $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL)
 	@echo "==> Running Allocator Unit Tests..."
 	./$(TEST_ALLOC)
 	@echo "==> Running Proc Parser Unit Tests..."
 	./$(TEST_PARSER)
+	@echo "==> Running Signal Handler Unit Tests..."
+	./$(TEST_SIGNAL)
 	@echo "==> Running Integration Tests..."
 	@bash tests/integration_test.sh
 
-valgrind: all $(TEST_ALLOC) $(TEST_PARSER)
+valgrind: all $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL)
 	@echo "==> Running Allocator Valgrind Leak Checks..."
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_ALLOC)
 	@echo "==> Running Proc Parser Valgrind Leak Checks..."
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_PARSER)
+	@echo "==> Running Signal Handler Valgrind Leak Checks..."
+	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_SIGNAL)
 
 benchmark: $(LIB_ALLOC)
 	@echo "==> Running Allocator Benchmark vs Glibc..."
@@ -91,7 +101,7 @@ benchmark: $(LIB_ALLOC)
 
 clean:
 	@echo "==> Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR) $(BIN_DIR) $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) *.o
+	rm -rf $(BUILD_DIR) $(BIN_DIR) $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) *.o
 
 help:
 	@echo "Available Makefile targets:"
