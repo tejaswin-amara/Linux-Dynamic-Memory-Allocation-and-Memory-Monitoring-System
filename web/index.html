@@ -1,0 +1,112 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Linux Task Manager & Memory Allocator Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo-area">
+            <span class="status-indicator live"></span>
+            <h1>Linux System Task Manager</h1>
+            <span class="badge">25CS2104E Capstone</span>
+        </div>
+        <div class="header-actions">
+            <span id="uptime-display" class="metric-tag">Polling: 1000ms</span>
+            <button id="refresh-btn" class="btn btn-sm">Refresh Now</button>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <!-- System Gauges Card -->
+        <section class="card system-overview">
+            <h2>System Resources</h2>
+            <div class="gauges-container">
+                <div class="gauge-card">
+                    <div class="gauge-title">CPU Utilization</div>
+                    <div class="gauge-value" id="cpu-pct">--%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill cpu-fill" id="cpu-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="gauge-sub" id="cpu-sub">Cores: --</div>
+                </div>
+
+                <div class="gauge-card">
+                    <div class="gauge-title">Memory (RAM)</div>
+                    <div class="gauge-value" id="mem-pct">--%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill mem-fill" id="mem-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="gauge-sub" id="mem-sub">Used: -- / --</div>
+                </div>
+
+                <div class="gauge-card">
+                    <div class="gauge-title">Swap Space</div>
+                    <div class="gauge-value" id="swap-pct">--%</div>
+                    <div class="progress-bar">
+                        <div class="progress-fill swap-fill" id="swap-bar" style="width: 0%;"></div>
+                    </div>
+                    <div class="gauge-sub" id="swap-sub">Used: -- / --</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Process Manager Table Card -->
+        <section class="card process-section">
+            <div class="section-header">
+                <h2>Active Processes (<span id="process-count">0</span>)</h2>
+                <div class="table-controls">
+                    <input type="text" id="proc-search" placeholder="Search PID or Command..." class="search-input">
+                    <select id="sort-select" class="select-input">
+                        <option value="cpu">Sort by CPU %</option>
+                        <option value="mem">Sort by Memory (RSS)</option>
+                        <option value="pid">Sort by PID</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="proc-table">
+                    <thead>
+                        <tr>
+                            <th>PID</th>
+                            <th>Command</th>
+                            <th>State</th>
+                            <th>Threads</th>
+                            <th>CPU %</th>
+                            <th>RSS (KB)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="proc-tbody">
+                        <tr>
+                            <td colspan="7" class="text-center">Awaiting telemetry stream...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Signal Confirmation Modal -->
+    <div id="signal-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Dispatch POSIX Signal</h3>
+            <p>Target Process: <strong id="modal-proc-name"></strong> (PID: <span id="modal-pid"></span>)</p>
+            <div class="signal-buttons">
+                <button class="btn btn-warning" onclick="sendSignal('SIGSTOP')">SIGSTOP (Pause)</button>
+                <button class="btn btn-info" onclick="sendSignal('SIGCONT')">SIGCONT (Resume)</button>
+                <button class="btn btn-primary" onclick="sendSignal('SIGTERM')">SIGTERM (Terminate)</button>
+                <button class="btn btn-danger" onclick="sendSignal('SIGKILL')">SIGKILL (Force Kill)</button>
+            </div>
+            <button class="btn btn-secondary close-modal" onclick="closeModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

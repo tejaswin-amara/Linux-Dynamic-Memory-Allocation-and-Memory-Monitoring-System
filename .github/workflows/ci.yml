@@ -1,0 +1,54 @@
+﻿name: Systems CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.compiler }} make valgrind libncurses-dev clang-format
+
+      - name: Verify Code Formatting
+        run: |
+          clang-format --dry-run --Werror src/**/*.c include/*.h tests/*.c
+
+      - name: Compile (Strict C11)
+        run: |
+          make clean
+          CC=${{ matrix.compiler }} make all
+
+      - name: Run Unit & Integration Tests
+        run: |
+          CC=${{ matrix.compiler }} make test
+
+      - name: AddressSanitizer & UndefinedBehaviorSanitizer (ASan/UBSan)
+        run: |
+          make clean
+          CC=${{ matrix.compiler }} make asan
+          ./test_allocator
+          ./test_proc_parser
+
+      - name: Valgrind Leak Verification
+        run: |
+          make clean
+          CC=${{ matrix.compiler }} make all
+          make valgrind
+
+      - name: Run Benchmarks
+        run: |
+          bash scripts/benchmark.sh

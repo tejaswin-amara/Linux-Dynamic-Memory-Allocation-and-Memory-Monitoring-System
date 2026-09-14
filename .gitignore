@@ -1,0 +1,34 @@
+# Build Artifacts
+build/
+bin/
+*.o
+*.so
+*.a
+*.out
+*.app
+
+# Executables
+mem_monitor
+test_allocator
+test_proc_parser
+
+# Debug and Profiling
+*.dSYM/
+*.gcda
+*.gcno
+gmon.out
+valgrind-out.txt
+vgcore.*
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+/tmp/

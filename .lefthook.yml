@@ -1,0 +1,16 @@
+﻿# Lefthook Git Hooks configuration for Awesome Dev Pipeline (Systems/CLI Archetype)
+# Refer: https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    clang-format:
+      glob: "*.{c,h}"
+      run: clang-format --dry-run --Werror {staged_files}
+    gitleaks:
+      run: if command -v gitleaks > /dev/null 2>&1; then gitleaks protect --verbose --redact --staged; fi
+
+commit-msg:
+  commands:
+    commitlint:
+      run: if command -v commitlint > /dev/null 2>&1; then commitlint --edit {1}; fi
