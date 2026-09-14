@@ -166,23 +166,33 @@ void my_free(void *ptr) {
 
   /* Coalesce Next */
   void *heap_end = sbrk(0);
-  block_header_t *next_header = (block_header_t *)((char *)header + header->block_size);
-  if ((void *)next_header < heap_end && next_header->magic_header == ALLOC_MAGIC_HEADER && next_header->is_mmap == 0 && next_header->is_free) {
+  block_header_t *next_header =
+      (block_header_t *)((char *)header + header->block_size);
+  if ((void *)next_header < heap_end &&
+      next_header->magic_header == ALLOC_MAGIC_HEADER &&
+      next_header->is_mmap == 0 && next_header->is_free) {
     free_list_remove(next_header);
     header->block_size += next_header->block_size;
-    block_footer_t *new_footer = (block_footer_t *)((char *)header + header->block_size - sizeof(block_footer_t));
+    block_footer_t *new_footer =
+        (block_footer_t *)((char *)header + header->block_size -
+                           sizeof(block_footer_t));
     new_footer->block_size = header->block_size;
   }
 
   /* Coalesce Prev */
   if (heap_start && (void *)header > heap_start) {
-    block_footer_t *prev_footer = (block_footer_t *)((char *)header - sizeof(block_footer_t));
+    block_footer_t *prev_footer =
+        (block_footer_t *)((char *)header - sizeof(block_footer_t));
     if (prev_footer->magic_footer == ALLOC_MAGIC_FOOTER) {
-      block_header_t *prev_header = (block_header_t *)((char *)header - prev_footer->block_size);
-      if (prev_header->magic_header == ALLOC_MAGIC_HEADER && prev_header->is_mmap == 0 && prev_header->is_free) {
+      block_header_t *prev_header =
+          (block_header_t *)((char *)header - prev_footer->block_size);
+      if (prev_header->magic_header == ALLOC_MAGIC_HEADER &&
+          prev_header->is_mmap == 0 && prev_header->is_free) {
         free_list_remove(prev_header);
         prev_header->block_size += header->block_size;
-        block_footer_t *new_footer = (block_footer_t *)((char *)prev_header + prev_header->block_size - sizeof(block_footer_t));
+        block_footer_t *new_footer =
+            (block_footer_t *)((char *)prev_header + prev_header->block_size -
+                               sizeof(block_footer_t));
         new_footer->block_size = prev_header->block_size;
         header = prev_header;
       }
