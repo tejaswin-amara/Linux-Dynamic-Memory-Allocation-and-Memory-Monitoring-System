@@ -29,8 +29,8 @@ graph TD
         APP[Target Application / Process] -->|LD_PRELOAD| SHIM[preload_shim.c]
         SHIM --> ALLOC[my_malloc / my_free]
         ALLOC --> SEGLIST[Segregated Free Lists<br/>10 Size Classes]
-        ALLOC -->|size < 128KB| SBRK[sbrk Syscall]
-        ALLOC -->|size >= 128KB| MMAP[mmap Syscall]
+        ALLOC -->|"size < 128KB"| SBRK[sbrk Syscall]
+        ALLOC -->|"size >= 128KB"| MMAP[mmap Syscall]
     end
 
     subgraph Kernel Space
@@ -41,7 +41,7 @@ graph TD
 
     subgraph Task Manager Daemon [mem_monitor]
         PARSER[proc_parser.c<br/>Unbuffered VFS Engine] -->|"Reads /proc/stat, meminfo, [pid]"| VFS
-        SIGNAL[signal_handler.c] -->|kill(pid, sig)| APP
+        SIGNAL[signal_handler.c] -->|"kill(pid, sig)"| APP
         SNAPSHOT[(System Telemetry Snapshot)]
         PARSER --> SNAPSHOT
         SNAPSHOT --> TUI[tui.c<br/>ncurses Dashboard]
