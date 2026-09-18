@@ -1,159 +1,355 @@
-﻿# Linux Dynamic Memory Allocation & System Task Manager (CLI + Web/GUI)
+# Linux Dynamic Memory Allocation & System Task Manager
 
 [![Systems CI Pipeline](https://github.com/tejaswin-amara/Linux-Dynamic-Memory-Allocation-and-Memory-Monitoring-System/actions/workflows/ci.yml/badge.svg)](https://github.com/tejaswin-amara/Linux-Dynamic-Memory-Allocation-and-Memory-Monitoring-System/actions/workflows/ci.yml)
-[![Standard](https://img.shields.io/badge/standard-C11%20%7C%20POSIX.1--2008-blue.svg)](https://en.wikipedia.org/wiki/C11_(C_standard_revision))
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![C11](https://img.shields.io/badge/C-C11-blue.svg)](https://en.wikipedia.org/wiki/C11_(C_standard_revision))
+[![Platform](https://img.shields.io/badge/platform-GNU%2FLinux-orange.svg)](https://www.kernel.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A production-grade Systems Software Capstone engineering project developed for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**. The system unites a custom high-performance dynamic memory allocator (`libmyalloc.so`) with an unbuffered Virtual File System process monitor (`mem_monitor`) featuring dual interfaces: an interactive `ncurses` Terminal User Interface (TUI) and an embedded C HTTP JSON telemetry server for a live Web GUI.
+A systems-programming capstone for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**.
+
+The project combines two low-level Linux components:
+
+- **\`libmyalloc.so\`** — a custom dynamic memory allocator implemented in C, using segregated free lists, boundary metadata, \`sbrk()\`, \`mmap()\`, and \`LD_PRELOAD\` interception.
+- **\`mem_monitor\`** — a Linux process and memory monitor that reads the **\`/proc\` virtual filesystem** directly and exposes the collected telemetry through both an **\`ncurses\` TUI** and an embedded **HTTP/JSON web dashboard**.
+
+The repository is intentionally focused on operating-system concepts, POSIX/Linux system calls, virtual memory, process inspection, signals, synchronization, and systems testing.
 
 ---
 
-## 1. Curriculum Traceability Matrix (25CS2104E)
+## Features
 
-| Course Outcome | Description | Concrete Implementation in Codebase |
+### Custom memory allocator
+
+- 16-byte block alignment.
+- **10 segregated free-list size classes** with best-fit search within each class.
+- Boundary metadata with:
+  - Header magic: \`0xDEADBEEF\`
+  - Footer magic: \`0xBEEFDEAD\`
+- Block splitting and forward/backward coalescing for reusable heap blocks.
+- Hybrid allocation strategy:
+  - Aligned block size **below 128 KiB** → heap growth/reuse through \`sbrk()\`
+  - Aligned block size **at or above 128 KiB** → anonymous \`mmap()\`
+- \`malloc()\`, \`free()\`, \`calloc()\`, and \`realloc()\` interception through \`LD_PRELOAD\`.
+- Allocator statistics for requested allocations, frees, \`sbrk()\` allocations, and \`mmap()\` allocations.
+- Mutex protection around allocator state for concurrent access.
+
+### Linux process and memory monitor
+
+- Direct reads from Linux \`/proc\` using low-level \`open()\`, \`read()\`, and \`close()\`.
+- System CPU metrics from \`/proc/stat\`.
+- RAM and swap metrics from \`/proc/meminfo\`.
+- Per-process information from \`/proc/<pid>/stat\` and \`/proc/<pid>/status\`.
+- Tracks:
+  - PID / PPID
+  - Command name
+  - Process state
+  - Thread count
+  - CPU usage
+  - Virtual memory size
+  - Resident set size (RSS)
+  - Voluntary and non-voluntary context switches
+- Differential CPU accounting using successive jiffy snapshots.
+- Online CPU-core detection via \`sysconf(_SC_NPROCESSORS_ONLN)\`.
+- Process discovery capped at **2048 processes per snapshot**.
+
+### Terminal UI
+
+The TUI is built with **\`ncurses\`** and refreshes the process view every 250 ms.
+
+Controls:
+
+| Key | Action |
+|---|---|
+| \`↑\` / \`↓\` | Move through processes |
+| \`j\` / \`k\` | Move down / up |
+| \`p\` | Sort by CPU usage |
+| \`m\` | Sort by RSS memory |
+| \`s\` | Send \`SIGSTOP\` |
+| \`c\` | Send \`SIGCONT\` |
+| \`K\` | Send \`SIGKILL\` |
+| \`q\` | Quit |
+
+### Web dashboard
+
+The embedded server serves the static dashboard and exposes JSON telemetry.
+
+Supported routes:
+
+| Method | Route | Purpose |
 |---|---|---|
-| **CO1: OS Service Layer** | Trace & utilize low-level syscalls interacting at kernel boundaries | `sbrk(2)`, `mmap(2)`, `munmap(2)`, `open(2)`, `read(2)`, `close(2)`, `kill(2)`, `sysconf(3)`. Strict validation against `errno` with `strace` verification. |
-| **CO2: Process Control** | Process lifecycle, daemonization, states, and worker threads | Scanning `/proc/[pid]/stat`, parsing states (`R`, `S`, `D`, `Z`, `T`), calculating differential CPU times, and managing background telemetry workers. |
-| **CO3: Inter-Process Communication** | Signal dispatching and telemetry streaming | Real-time delivery of POSIX signals (`SIGINT`, `SIGTERM`, `SIGKILL`, `SIGSTOP`, `SIGCONT`) via `kill()`; streaming JSON metrics via POSIX TCP sockets. |
-| **CO4: Memory Management** | Custom dynamic allocation & virtual memory mapping | Segregated free lists (10 size bins), boundary tags with `0xDEADBEEF` canaries, hybrid `sbrk()` (<128 KB) vs `mmap()` (>=128 KB), and `/proc/[pid]/maps` parsing. |
-| **CO5: File Systems** | Direct VFS parsing via low-level file I/O | Unbuffered `open()`, `read()`, and `close()` parsing of `/proc/stat`, `/proc/meminfo`, `/proc/[pid]/status`, and `/proc/[pid]/smaps_rollup`. |
-| **CO6: Concurrency** | POSIX threading and synchronization | Multi-threaded heap synchronization (`pthread_mutex_t`) in allocator; asynchronous sampling threads and read-write locks (`pthread_rwlock_t`) in GUI server. |
+| \`GET\` | \`/\` | Web dashboard |
+| \`GET\` | \`/index.html\` | Dashboard HTML |
+| \`GET\` | \`/style.css\` | Dashboard CSS |
+| \`GET\` | \`/app.js\` | Dashboard JavaScript |
+| \`GET\` | \`/api/metrics\` | Current CPU, memory, swap, and process telemetry |
+| \`POST\` | \`/api/process/signal\` | Dispatch a POSIX signal to a target PID |
+
+Example signal request:
+
+\`\`\`json
+{
+  "pid": 1234,
+  "signal": "SIGTERM"
+}
+\`\`\`
+
+Supported signal names/numeric aliases include:
+
+- \`SIGKILL\` / \`9\`
+- \`SIGTERM\` / \`15\`
+- \`SIGSTOP\` / \`19\`
+- \`SIGCONT\` / \`18\`
+- \`SIGINT\` / \`2\`
 
 ---
 
-## 2. System Architecture
+## Architecture
 
-```mermaid
+\`\`\`mermaid
 graph TD
-    subgraph User Application Runtime
-        APP[Target Application / Process] -->|LD_PRELOAD| SHIM[preload_shim.c]
-        SHIM --> ALLOC[my_malloc / my_free]
-        ALLOC --> SEGLIST[Segregated Free Lists<br/>10 Size Classes]
-        ALLOC -->|size < 128KB| SBRK[sbrk Syscall]
-        ALLOC -->|size >= 128KB| MMAP[mmap Syscall]
-    end
+    APP["Target Linux Application"] -->|"LD_PRELOAD"| ALLOC["libmyalloc.so"]
+    ALLOC --> FL["10 Segregated Free Lists"]
+    ALLOC -->|"Block size < 128 KiB"| SBRK["sbrk()"]
+    ALLOC -->|"Block size >= 128 KiB"| MMAP["mmap()"]
 
-    subgraph Kernel Space
-        SBRK --> HEAP[(Heap Segment)]
-        MMAP --> ANONYMOUS[(Anonymous Pages)]
-        VFS[(Linux /proc VFS)]
-    end
+    SBRK --> HEAP["Process Heap"]
+    MMAP --> MAPS["Anonymous Mapping"]
 
-    subgraph Task Manager Daemon [mem_monitor]
-        PARSER[proc_parser.c<br/>Unbuffered VFS Engine] -->|Reads /proc/stat, meminfo, [pid]| VFS
-        SIGNAL[signal_handler.c] -->|kill(pid, sig)| APP
-        SNAPSHOT[(System Telemetry Snapshot)]
-        PARSER --> SNAPSHOT
-        SNAPSHOT --> TUI[tui.c<br/>ncurses Dashboard]
-        SNAPSHOT --> SERVER[gui_server.c<br/>Embedded HTTP Server]
-        SERVER -->|JSON /api/metrics| WEB[Web GUI Dashboard<br/>http://localhost:8080]
-    end
-```
+    MON["mem_monitor"] --> PROC["/proc filesystem"]
+    PROC --> CPU["/proc/stat"]
+    PROC --> MEM["/proc/meminfo"]
+    PROC --> PSTAT["/proc/<pid>/stat"]
+    PROC --> STATUS["/proc/<pid>/status"]
 
----
+    MON --> SNAP["In-memory system snapshot"]
+    SNAP --> TUI["ncurses TUI"]
+    SNAP --> HTTP["Embedded HTTP server"]
+    HTTP --> WEB["Web dashboard"]
+    WEB -->|"GET /api/metrics"| HTTP
+    WEB -->|"POST /api/process/signal"| SIG["kill(pid, sig)"]
+    SIG --> APP
+\`\`\`
 
-## 3. Core Modules
+### Runtime model
 
-### 3.1 Custom Dynamic Memory Allocator (`libmyalloc.so`)
-- **Segregated Free Lists**: Ten discrete size bins minimizing external and internal fragmentation.
-- **Canary Boundary Tags**: Header (`0xDEADBEEF`) and footer (`0xBEEFDEAD`) block descriptors for instant detection of buffer overruns and double-free anomalies.
-- **Coalescing**: Automatic bidirectional merging of adjacent free blocks upon `my_free()`.
-- **Preload Shim**: Drop-in runtime interception for arbitrary Linux binaries using `LD_PRELOAD=./libmyalloc.so`.
-
-### 3.2 Process & VFS Monitor (`mem_monitor`)
-- **Zero-Allocation Sampling Loop**: Uses pre-allocated stack buffers and direct POSIX `read(2)` calls.
-- **Accurate CPU Differentials**:
-  $$\text{CPU \%} = \left(\frac{(utime_2 + stime_2) - (utime_1 + stime_1)}{\text{total\_jiffies}_2 - \text{total\_jiffies}_1}\right) \times 100 \times \text{cores}$$
-- **Virtual Memory Rollup**: Computes RSS, PSS, and VSize directly from `/proc/[pid]/stat` and `/proc/[pid]/smaps_rollup`.
-
-### 3.3 Dual Interface Layer
-- **TUI (CLI)**: Built with `ncurses`. Non-blocking keyboard navigation (`nodelay`). Supports sort toggles (`p` for CPU, `m` for Memory) and real-time signal dispatch (`k`, `s`, `c`).
-- **Web GUI**: Multi-threaded embedded C HTTP daemon serving an HTML5/CSS3 dark-mode dashboard with live canvas meters and signal control buttons.
+1. \`mem_monitor\` initializes the \`/proc\` parser and detects the number of online CPU cores.
+2. The main loop captures a fresh system snapshot.
+3. The snapshot is copied into the HTTP server state under a \`pthread_rwlock_t\`.
+4. In normal mode, the snapshot is rendered in the TUI.
+5. The embedded HTTP server runs in a background pthread and serves the web dashboard/API.
+6. In headless mode, the TUI is skipped while the snapshot continues to refresh once per second.
+7. Signal requests are translated into POSIX signal numbers and dispatched with \`kill()\`.
 
 ---
 
-## 4. Build and Verification Matrix
+## CPU and memory calculations
 
-### Prerequisites
-Ubuntu 24.04 LTS or compatible Linux environment with:
-```bash
+### System CPU
+
+System CPU utilization is calculated from the change in total and idle jiffies between consecutive readings:
+
+\`\`\`
+busy = delta_total - delta_idle
+CPU% = (busy / delta_total) × 100
+\`\`\`
+
+### Per-process CPU
+
+Per-process CPU usage is derived from the process \`utime + stime\` delta relative to the total system jiffy delta and scaled by the number of online cores:
+
+\`\`\`
+Process CPU% =
+    (process_delta / system_delta) × 100 × online_core_count
+\`\`\`
+
+### Memory
+
+- RAM usage uses **MemTotal - MemAvailable** from \`/proc/meminfo\`.
+- Swap usage uses **SwapTotal - SwapFree**.
+- Per-process memory percentage is based on **VmRSS / MemTotal**.
+
+---
+
+## Curriculum traceability — 25CS2104E
+
+| Course outcome | Relevant implementation |
+|---|---|
+| **CO1 — OS service layer** | \`sbrk()\`, \`mmap()\`, \`munmap()\`, \`open()\`, \`read()\`, \`close()\`, \`kill()\`, \`sysconf()\` |
+| **CO2 — Process control** | \`/proc/<pid>/stat\` parsing, process states, PID/PPID tracking, thread counts, process CPU deltas |
+| **CO3 — Inter-process communication** | POSIX signal dispatch with \`kill()\` and HTTP/TCP delivery of JSON telemetry |
+| **CO4 — Memory management** | Custom allocator, segregated free lists, block splitting/coalescing, boundary metadata, \`sbrk()\` / \`mmap()\` strategy |
+| **CO5 — File systems / VFS** | Direct parsing of Linux \`/proc\` using low-level file-descriptor I/O |
+| **CO6 — Concurrency** | Allocator \`pthread_mutex_t\` and HTTP snapshot protection with \`pthread_rwlock_t\` |
+
+---
+
+## Requirements
+
+Tested repository target:
+
+- Ubuntu **24.04 LTS** or a compatible GNU/Linux environment
+- GCC or Clang
+- GNU Make
+- \`libncurses-dev\`
+- \`valgrind\`
+- \`clang-format\` for formatting checks
+
+Install the required packages on Ubuntu:
+
+\`\`\`bash
 sudo apt-get update
-sudo apt-get install -y build-essential gcc make valgrind libncurses-dev clang-format
-```
+sudo apt-get install -y build-essential gcc clang make valgrind libncurses-dev clang-format
+\`\`\`
 
-### Build Commands
-```bash
-# Build libmyalloc.so and mem_monitor binary
+---
+
+## Build
+
+Build the allocator and monitor:
+
+\`\`\`bash
 make all
+\`\`\`
 
-# Run Unity unit tests and integration test suite
-make test
+This produces:
 
-# Build with AddressSanitizer and UndefinedBehaviorSanitizer
-make asan
+- \`libmyalloc.so\`
+- \`mem_monitor\`
 
-# Verify memory cleanliness under Valgrind
-make valgrind
+Remove generated artifacts:
 
-# Benchmark allocator performance against glibc
-make benchmark
-```
+\`\`\`bash
+make clean
+\`\`\`
+
+See all Make targets:
+
+\`\`\`bash
+make help
+\`\`\`
 
 ---
 
-## 5. Usage Guide
+## Running the monitor
 
-### Running the Task Manager
-```bash
-# Launch interactive TUI and embedded Web GUI (port 8080)
+### Normal mode — TUI + web server
+
+\`\`\`bash
 ./mem_monitor
+\`\`\`
 
-# Launch with custom HTTP port
+Open the dashboard at:
+
+\`http://localhost:8080\`
+
+### Custom HTTP port
+
+\`\`\`bash
 ./mem_monitor --port 9090
+\`\`\`
 
-# Launch in headless JSON streaming mode (for CI or piping)
-./mem_monitor --headless --json
-```
+Dashboard:
 
-### Interacting via TUI
-- `Up` / `Down` Arrow keys: Navigate through process table
-- `p`: Sort processes by CPU % descending
-- `m`: Sort processes by Memory (RSS) descending
-- `k`: Send `SIGKILL` or custom signal to highlighted process
-- `s`: Send `SIGSTOP` (pause process execution)
-- `c`: Send `SIGCONT` (resume paused process)
-- `q`: Exit cleanly and restore terminal modes
+\`http://localhost:9090\`
 
-### Using the Custom Allocator on External Binaries
-```bash
-# Trace memory operations of any Linux binary
-LD_PRELOAD=./libmyalloc.so ls -la
+### Headless server mode
 
-# Run a Python script using the custom allocator
-LD_PRELOAD=./libmyalloc.so python3 -c "print([x**2 for x in range(100000)])"
-```
+Runs the HTTP server without starting ncurses:
+
+\`\`\`bash
+./mem_monitor --headless
+\`\`\`
+
+### One-shot JSON snapshot
+
+\`--json\` implies headless mode, prints one JSON snapshot, and exits:
+
+\`\`\`bash
+./mem_monitor --json
+\`\`\`
+
+This is suitable for CI or shell pipelines.
 
 ---
 
-## 6. Directory Layout
-```
+## Using the allocator with LD_PRELOAD
+
+Run a dynamically linked Linux program through the custom allocator:
+
+\`\`\`bash
+LD_PRELOAD=./libmyalloc.so /bin/ls -la /tmp
+\`\`\`
+
+Example with Python:
+
+\`\`\`bash
+LD_PRELOAD=./libmyalloc.so python3 -c "print([x**2 for x in range(100000)])"
+\`\`\`
+
+The allocator is an educational systems-programming implementation rather than a hardened replacement for glibc's allocator. Use it in controlled Linux environments.
+
+---
+
+## Testing and verification
+
+### Unit + integration tests
+
+\`\`\`bash
+make test
+\`\`\`
+
+This builds and runs:
+
+- Allocator unit tests
+- \`/proc\` parser unit tests
+- Signal-handler unit tests
+- LD_PRELOAD integration checks
+- One-shot JSON telemetry integration checks
+
+### AddressSanitizer + UndefinedBehaviorSanitizer
+
+\`\`\`bash
+make asan
+\`\`\`
+
+The target recompiles the project and test binaries with ASan/UBSan enabled.
+
+### Valgrind
+
+\`\`\`bash
+make valgrind
+\`\`\`
+
+Runs leak checks for the allocator, parser, and signal-handler tests.
+
+### Allocator benchmark
+
+\`\`\`bash
+make benchmark
+\`\`\`
+
+Runs allocation/free workloads with a glibc baseline and the custom allocator via \`LD_PRELOAD\`.
+
+### Concurrency and fragmentation stress tests
+
+\`\`\`bash
+bash scripts/stress_test.sh
+\`\`\`
+
+The stress suite exercises multi-threaded allocation patterns and variable-size workloads.
+
+---
+
+## Repository structure
+
+\`\`\`text
 .
-├── .editorconfig
-├── .gitignore
-├── .lefthook.yml
-├── LICENSE
-├── Makefile
-├── README.md
-├── SECURITY.md
-├── CONTRIBUTING.md
-├── .github/workflows/ci.yml
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── docs/
 │   ├── architecture/
 │   │   ├── adr/
-│   │   │   ├── ADR-001-custom-allocator-design.md
-│   │   │   ├── ADR-002-proc-parsing-strategy.md
-│   │   │   ├── ADR-003-cli-tui-engine.md
-│   │   │   └── ADR-004-realtime-gui-telemetry.md
 │   │   ├── context.md
 │   │   ├── container.md
 │   │   └── data-flow.md
@@ -172,29 +368,99 @@ LD_PRELOAD=./libmyalloc.so python3 -c "print([x**2 for x in range(100000)])"
 │   │   ├── free_list.c
 │   │   └── preload_shim.c
 │   ├── monitor/
+│   │   ├── gui_server.c
 │   │   ├── main.c
 │   │   ├── proc_parser.c
-│   │   ├── signal_handler.c
-│   │   └── gui_server.c
+│   │   └── signal_handler.c
 │   └── ui/
 │       └── tui.c
-├── web/
-│   ├── index.html
-│   ├── style.css
-│   └── app.js
 ├── tests/
 │   ├── unity/
 │   │   ├── unity.c
 │   │   └── unity.h
 │   ├── test_allocator.c
 │   ├── test_proc_parser.c
+│   ├── test_signal_handler.c
 │   └── integration_test.sh
-└── scripts/
-    ├── benchmark.sh
-    └── stress_test.sh
-```
+├── scripts/
+│   ├── benchmark.sh
+│   └── stress_test.sh
+├── web/
+│   ├── index.html
+│   ├── style.css
+│   └── app.js
+├── .editorconfig
+├── .gitignore
+├── .lefthook.yml
+├── CONTRIBUTING.md
+├── LICENSE
+├── Makefile
+├── README.md
+└── SECURITY.md
+\`\`\`
 
 ---
 
-## 7. License
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+## CI
+
+GitHub Actions runs the project on **Ubuntu 24.04** with both:
+
+- GCC
+- Clang
+
+The workflow checks:
+
+1. Formatting with \`clang-format\`
+2. Strict compilation
+3. Unit and integration tests
+4. ASan/UBSan builds
+5. Valgrind leak checks
+6. Benchmark execution
+
+---
+
+## Security notes
+
+The embedded web server is intentionally minimal and should be treated as a local/controlled development tool.
+
+Important current behavior:
+
+- The HTTP server binds to **\`INADDR_ANY\`**, not only loopback.
+- The signal-control endpoint has **no authentication or authorization layer**.
+- The metrics endpoint enables permissive **CORS (\`*\`)**.
+- Do not expose the service to an untrusted network without adding access controls and network isolation.
+
+See [SECURITY.md](SECURITY.md) for the repository's vulnerability-reporting policy.
+
+---
+
+## Current implementation notes
+
+The README describes the implementation currently present in the repository. A few capabilities are intentionally limited:
+
+- The process snapshot stores a \`pss_kb\` field, but the current parser does not populate PSS from \`smaps_rollup\`.
+- The parser provides a helper for reading \`/proc/<pid>/maps\`, but that data is not part of the standard dashboard snapshot.
+- Canary validation detects invalid allocator metadata, but the allocator does not maintain a dedicated double-free state table.
+- The web API returns at most **100 processes** per metrics response, while the internal snapshot can hold up to 2048.
+- \`allocator_verify_integrity()\` is currently a placeholder and should not be treated as a complete heap-wide integrity auditor.
+
+These limitations are documented here rather than presenting unimplemented behavior as completed functionality.
+
+---
+
+## Documentation
+
+- [Architecture context](docs/architecture/context.md)
+- [Container architecture](docs/architecture/container.md)
+- [Telemetry and allocation data flow](docs/architecture/data-flow.md)
+- [Architecture Decision Records](docs/architecture/adr/)
+- [Incident response runbook](docs/runbooks/incident-response.md)
+- [Memory-leak debugging runbook](docs/runbooks/debugging-memory-leaks.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+
+---
+
+## License
+
+Distributed under the [MIT License](LICENSE).
