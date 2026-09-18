@@ -67,6 +67,7 @@ graph TD
 $$\text{CPU \%} = \left(\frac{(utime_2 + stime_2) - (utime_1 + stime_1)}{\text{total\_jiffies}_2 - \text{total\_jiffies}_1}\right) \times 100 \times \text{cores}$$
 
 - **Virtual Memory Rollup**: Computes RSS, PSS, and VSize directly from `/proc/[pid]/stat` and `/proc/[pid]/smaps_rollup`.
+
 ### 3.3 Dual Interface Layer
 - **TUI (CLI)**: Built with `ncurses`. Non-blocking keyboard navigation (`nodelay`). Supports sort toggles (`p` for CPU, `m` for Memory) and real-time signal dispatch (`k`, `s`, `c`).
 - **Web GUI**: Multi-threaded embedded C HTTP daemon serving an HTML5/CSS3 dark-mode dashboard with live canvas meters and signal control buttons.
