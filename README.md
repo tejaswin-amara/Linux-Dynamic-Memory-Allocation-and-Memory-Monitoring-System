@@ -64,7 +64,7 @@ graph TD
 - **Zero-Allocation Sampling Loop**: Uses pre-allocated stack buffers and direct POSIX `read(2)` calls.
 - **Accurate CPU Differentials**:
 
-$$\text{CPU \%} = \left(\frac{(utime_2 + stime_2) - (utime_1 + stime_1)}{\text{total\_jiffies}_2 - \text{total\_jiffies}_1}\right) \times 100 \times \text{cores}$$
+$$\text{CPU \%} = \left(\frac{(utime_2 + stime_2) - (utime_1 + stime_1)}{\mathit{total\_jiffies}_2 - \mathit{total\_jiffies}_1}\right) \times 100 \times \text{cores}$$
 
 - **Virtual Memory Rollup**: Computes RSS, PSS, and VSize directly from `/proc/[pid]/stat` and `/proc/[pid]/smaps_rollup`.
 
