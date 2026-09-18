@@ -65,8 +65,8 @@ int proc_parser_read_cpu(cpu_metrics_t *metrics) {
                curr.irq + curr.softirq + curr.steal;
 
   unsigned long long delta_total = curr.total >= prev_cpu_jiffies.total
-                                        ? curr.total - prev_cpu_jiffies.total
-                                        : 0;
+                                       ? curr.total - prev_cpu_jiffies.total
+                                       : 0;
   unsigned long long delta_idle = curr.idle >= prev_cpu_jiffies.idle
                                       ? curr.idle - prev_cpu_jiffies.idle
                                       : 0;
@@ -81,17 +81,12 @@ int proc_parser_read_cpu(cpu_metrics_t *metrics) {
   last_system_jiffies_delta = delta_total;
 
   if (delta_total > 0) {
-    unsigned long long busy = delta_total > delta_idle
-                                  ? delta_total - delta_idle
-                                  : 0;
-    metrics->total_usage_pct =
-        ((float)busy / (float)delta_total) * 100.0f;
-    metrics->user_pct =
-        ((float)delta_user / (float)delta_total) * 100.0f;
-    metrics->system_pct =
-        ((float)delta_system / (float)delta_total) * 100.0f;
-    metrics->idle_pct =
-        ((float)delta_idle / (float)delta_total) * 100.0f;
+    unsigned long long busy =
+        delta_total > delta_idle ? delta_total - delta_idle : 0;
+    metrics->total_usage_pct = ((float)busy / (float)delta_total) * 100.0f;
+    metrics->user_pct = ((float)delta_user / (float)delta_total) * 100.0f;
+    metrics->system_pct = ((float)delta_system / (float)delta_total) * 100.0f;
+    metrics->idle_pct = ((float)delta_idle / (float)delta_total) * 100.0f;
   } else {
     metrics->total_usage_pct = 0.0f;
     metrics->user_pct = 0.0f;
@@ -143,16 +138,17 @@ int proc_parser_read_mem(mem_metrics_t *metrics) {
 
   if (metrics->mem_total_kb > 0) {
     unsigned long used = metrics->mem_total_kb > metrics->mem_available_kb
-                              ? metrics->mem_total_kb - metrics->mem_available_kb
-                              : 0;
+                             ? metrics->mem_total_kb - metrics->mem_available_kb
+                             : 0;
     metrics->mem_usage_pct =
         ((float)used / (float)metrics->mem_total_kb) * 100.0f;
   }
 
   if (metrics->swap_total_kb > 0) {
-    unsigned long swap_used = metrics->swap_total_kb > metrics->swap_free_kb
-                                   ? metrics->swap_total_kb - metrics->swap_free_kb
-                                   : 0;
+    unsigned long swap_used =
+        metrics->swap_total_kb > metrics->swap_free_kb
+            ? metrics->swap_total_kb - metrics->swap_free_kb
+            : 0;
     metrics->swap_usage_pct =
         ((float)swap_used / (float)metrics->swap_total_kb) * 100.0f;
   }
@@ -201,11 +197,11 @@ int proc_parser_read_process(pid_t pid, process_info_t *proc,
   unsigned long long stime = 0;
   unsigned long long starttime = 0;
 
-  int matched = sscanf(
-      rest,
-      "%c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %llu %llu %*d %*d %ld %ld %ld %*d %llu",
-      &proc->state, &ppid, &utime, &stime, &priority, &nice_value,
-      &num_threads, &starttime);
+  int matched = sscanf(rest,
+                       "%c %d %*d %*d %*d %*d %*u %*u %*u %*u %*u %llu %llu "
+                       "%*d %*d %ld %ld %ld %*d %llu",
+                       &proc->state, &ppid, &utime, &stime, &priority,
+                       &nice_value, &num_threads, &starttime);
   if (matched < 8)
     return -1;
 
@@ -281,8 +277,8 @@ int proc_parser_take_snapshot(system_snapshot_t *snapshot) {
       unsigned long long process_delta =
           proc.total_time >= previous ? proc.total_time - previous : 0;
       proc.cpu_usage_pct =
-          ((float)process_delta / (float)last_system_jiffies_delta) *
-          100.0f * (float)sys_core_count;
+          ((float)process_delta / (float)last_system_jiffies_delta) * 100.0f *
+          (float)sys_core_count;
     }
 
     if (snapshot->mem.mem_total_kb > 0) {

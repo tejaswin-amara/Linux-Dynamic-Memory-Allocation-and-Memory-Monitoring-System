@@ -34,16 +34,16 @@
 
 #define LOG_WARN(...)                                                          \
   do {                                                                         \
-    fprintf(stderr, "[WARN] [%s:%d] ", __FILE__, __LINE__);                   \
+    fprintf(stderr, "[WARN] [%s:%d] ", __FILE__, __LINE__);                    \
     fprintf(stderr, __VA_ARGS__);                                              \
     fprintf(stderr, "\n");                                                     \
   } while (0)
 
 #define LOG_ERROR(...)                                                         \
   do {                                                                         \
-    fprintf(stderr, "[ERROR] [%s:%d] ", __FILE__, __LINE__);                  \
+    fprintf(stderr, "[ERROR] [%s:%d] ", __FILE__, __LINE__);                   \
     fprintf(stderr, __VA_ARGS__);                                              \
-    fprintf(stderr, " (errno: %s)\n", strerror(errno));                      \
+    fprintf(stderr, " (errno: %s)\n", strerror(errno));                        \
   } while (0)
 
 #endif /* COMMON_H */
