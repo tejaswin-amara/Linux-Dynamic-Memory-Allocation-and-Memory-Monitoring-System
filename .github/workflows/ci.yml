@@ -42,6 +42,8 @@ jobs:
           CC=${{ matrix.compiler }} make asan
           ./test_allocator
           ./test_proc_parser
+          ./test_signal_handler
+          ./test_gui_server
 
       - name: Valgrind Leak Verification
         run: |

@@ -68,6 +68,8 @@ int main(int argc, char **argv) {
 
   if (!token_provided || strlen(auth_token) == 0) {
     generate_random_token(auth_token, sizeof(auth_token));
+    LOG_INFO("Generated auth token: %s (use --token to set your own)",
+             auth_token);
   }
 
   struct sigaction sa;
