@@ -1,4 +1,4 @@
-﻿#include "common.h"
+#include "common.h"
 
 int signal_send_to_process(pid_t pid, int sig) {
   if (pid <= 1) {
@@ -7,7 +7,7 @@ int signal_send_to_process(pid_t pid, int sig) {
   }
 
   if (kill(pid, sig) != 0) {
-    LOG_ERROR("kill(%d, %d) failed", pid, sig);
+    LOG_ERRNO_ERROR("kill(%d, %d) failed", pid, sig);
     return -1;
   }
 
@@ -16,7 +16,7 @@ int signal_send_to_process(pid_t pid, int sig) {
 }
 
 int signal_parse_name(const char *name) {
-  if (!name)
+  if (!name || strlen(name) == 0)
     return SIGTERM;
   if (strcmp(name, "SIGKILL") == 0 || strcmp(name, "9") == 0)
     return SIGKILL;
@@ -28,5 +28,14 @@ int signal_parse_name(const char *name) {
     return SIGCONT;
   if (strcmp(name, "SIGINT") == 0 || strcmp(name, "2") == 0)
     return SIGINT;
+  if (strcmp(name, "0") == 0)
+    return 0;
+
+  char *endptr;
+  long val = strtol(name, &endptr, 10);
+  if (*endptr == '\0' && val >= 0 && val <= 31) {
+    return (int)val;
+  }
+
   return SIGTERM;
 }

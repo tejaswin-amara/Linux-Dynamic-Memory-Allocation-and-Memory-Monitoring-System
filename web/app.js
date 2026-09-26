@@ -1,4 +1,4 @@
-﻿// Real-time Telemetry Client for Linux Task Manager
+// Real-time Telemetry Client for Linux Task Manager
 
 let selectedPid = null;
 let currentProcesses = [];

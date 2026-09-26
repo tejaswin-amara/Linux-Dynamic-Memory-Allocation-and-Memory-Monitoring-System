@@ -1,11 +1,10 @@
-﻿# ==============================================================================
+# ==============================================================================
 # Linux Dynamic Memory Allocation & System Task Manager (CLI + Web/GUI)
-# Awesome Dev Pipeline - Systems/CLI Archetype
 # KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming
 # ==============================================================================
 
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -Werror -pedantic -std=c11 -D_GNU_SOURCE -pthread -fPIC
+CFLAGS ?= -Wall -Wextra -Werror -pedantic -std=c11 -D_GNU_SOURCE -pthread -fPIC -g -O2 -MMD -MP
 INC_FLAGS := -Iinclude -Itests/unity
 
 # Targets and Directories
@@ -21,10 +20,11 @@ BIN_MONITOR := mem_monitor
 TEST_ALLOC := test_allocator
 TEST_PARSER := test_proc_parser
 TEST_SIGNAL := test_signal_handler
+TEST_GUI := test_gui_server
 
 # Libraries
 LDLIBS_MONITOR := -lncurses -pthread
-LDLIBS_TEST := -pthread
+LDLIBS_TEST := -pthread -lm
 
 # Sanitizer Flags
 ASAN_FLAGS := -fsanitize=address,undefined -g -fno-omit-frame-pointer
@@ -56,7 +56,7 @@ $(BIN_MONITOR): $(SRC_MONITOR_DIR)/main.c $(SRC_MONITOR_DIR)/proc_parser.c \
 # Sanitizers (ASan / UBSan)
 # ------------------------------------------------------------------------------
 asan: CFLAGS += $(ASAN_FLAGS)
-asan: directories $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL)
+asan: directories $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	@echo "==> Built with AddressSanitizer and UndefinedBehaviorSanitizer"
 
 # ------------------------------------------------------------------------------
@@ -77,23 +77,34 @@ $(TEST_SIGNAL): $(TESTS_DIR)/test_signal_handler.c $(SRC_MONITOR_DIR)/signal_han
 	@echo "==> Building Signal Handler Unit Tests: $@"
 	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
 
-test: $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL)
+$(TEST_GUI): $(TESTS_DIR)/test_gui_server.c $(SRC_MONITOR_DIR)/gui_server.c \
+             $(SRC_MONITOR_DIR)/signal_handler.c $(TESTS_DIR)/unity/unity.c
+	@echo "==> Building GUI Server Unit Tests: $@"
+	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
+
+test: $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	@echo "==> Running Allocator Unit Tests..."
 	./$(TEST_ALLOC)
 	@echo "==> Running Proc Parser Unit Tests..."
 	./$(TEST_PARSER)
 	@echo "==> Running Signal Handler Unit Tests..."
 	./$(TEST_SIGNAL)
+	@echo "==> Running GUI Server Unit Tests..."
+	./$(TEST_GUI)
 	@echo "==> Running Integration Tests..."
 	@bash tests/integration_test.sh
 
-valgrind: all $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL)
+valgrind: all $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	@echo "==> Running Allocator Valgrind Leak Checks..."
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_ALLOC)
 	@echo "==> Running Proc Parser Valgrind Leak Checks..."
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_PARSER)
 	@echo "==> Running Signal Handler Valgrind Leak Checks..."
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_SIGNAL)
+	@echo "==> Running GUI Server Valgrind Leak Checks..."
+	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_GUI)
+	@echo "==> Running Self-Hosted mem_monitor Valgrind Soak (30s)..."
+	@bash scripts/valgrind_soak.sh
 
 benchmark: $(LIB_ALLOC)
 	@echo "==> Running Allocator Benchmark vs Glibc..."
@@ -101,13 +112,15 @@ benchmark: $(LIB_ALLOC)
 
 clean:
 	@echo "==> Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR) $(BIN_DIR) $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) *.o
+	rm -rf $(BUILD_DIR) $(BIN_DIR) $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI) *.o *.d
 
 help:
 	@echo "Available Makefile targets:"
 	@echo "  all        - Build libmyalloc.so and mem_monitor binary"
 	@echo "  asan       - Compile with AddressSanitizer and UBSan enabled"
 	@echo "  test       - Build and execute Unity unit tests and integration tests"
-	@echo "  valgrind   - Verify zero leaks with Valgrind"
+	@echo "  valgrind   - Verify zero leaks with Valgrind including 30s soak"
 	@echo "  benchmark  - Execute performance benchmarks comparing with glibc"
 	@echo "  clean      - Remove compiled artifacts"
+
+-include *.d

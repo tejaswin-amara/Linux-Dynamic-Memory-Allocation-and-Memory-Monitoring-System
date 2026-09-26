@@ -1,4 +1,4 @@
-﻿#ifndef PROC_PARSER_H
+#ifndef PROC_PARSER_H
 #define PROC_PARSER_H
 
 #include "common.h"

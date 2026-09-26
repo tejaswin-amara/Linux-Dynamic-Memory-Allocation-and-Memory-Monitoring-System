@@ -1,4 +1,4 @@
-﻿#include "proc_parser.h"
+#include "proc_parser.h"
 #include "unity.h"
 
 void setUp(void) {}
