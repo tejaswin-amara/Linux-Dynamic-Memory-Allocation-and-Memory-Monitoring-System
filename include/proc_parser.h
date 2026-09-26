@@ -67,6 +67,7 @@ typedef struct {
 typedef struct {
   process_info_t procs[MAX_PROCS];
   int count;
+  bool truncated;
   cpu_metrics_t cpu;
   mem_metrics_t mem;
   time_t timestamp;

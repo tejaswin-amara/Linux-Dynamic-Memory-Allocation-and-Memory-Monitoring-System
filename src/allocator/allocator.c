@@ -1,4 +1,5 @@
 #include "allocator.h"
+#include "free_list_internal.h"
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -12,7 +13,7 @@ static void fatal_abort(const char *msg) {
   abort();
 }
 
-void allocator_init(void) {
+ALLOC_API void allocator_init(void) {
   pthread_mutex_lock(&alloc_mutex);
   memset(&global_stats, 0, sizeof(global_stats));
   free_list_reset();
@@ -20,7 +21,7 @@ void allocator_init(void) {
   pthread_mutex_unlock(&alloc_mutex);
 }
 
-void allocator_destroy(void) {
+ALLOC_API void allocator_destroy(void) {
   pthread_mutex_lock(&alloc_mutex);
   memset(&global_stats, 0, sizeof(global_stats));
   free_list_reset();
@@ -28,14 +29,14 @@ void allocator_destroy(void) {
   pthread_mutex_unlock(&alloc_mutex);
 }
 
-allocator_stats_t allocator_get_stats(void) {
+ALLOC_API allocator_stats_t allocator_get_stats(void) {
   pthread_mutex_lock(&alloc_mutex);
   allocator_stats_t stats = global_stats;
   pthread_mutex_unlock(&alloc_mutex);
   return stats;
 }
 
-int allocator_verify_integrity(void) {
+ALLOC_API int allocator_verify_integrity(void) {
   pthread_mutex_lock(&alloc_mutex);
   int res = free_list_verify_integrity();
   if (res != 0) {
@@ -68,7 +69,7 @@ int allocator_verify_integrity(void) {
   return 0;
 }
 
-void *my_malloc(size_t size) {
+ALLOC_API void *my_malloc(size_t size) {
   if (size == 0)
     return NULL;
 
@@ -175,7 +176,7 @@ void *my_malloc(size_t size) {
   return (void *)((char *)block + sizeof(block_header_t));
 }
 
-void my_free(void *ptr) {
+ALLOC_API void my_free(void *ptr) {
   if (!ptr)
     return;
 
@@ -253,7 +254,7 @@ void my_free(void *ptr) {
   pthread_mutex_unlock(&alloc_mutex);
 }
 
-void *my_calloc(size_t nmemb, size_t size) {
+ALLOC_API void *my_calloc(size_t nmemb, size_t size) {
   if (nmemb == 0 || size == 0)
     return NULL;
 
@@ -271,7 +272,7 @@ void *my_calloc(size_t nmemb, size_t size) {
   return ptr;
 }
 
-void *my_realloc(void *ptr, size_t size) {
+ALLOC_API void *my_realloc(void *ptr, size_t size) {
   if (!ptr)
     return my_malloc(size);
   if (size == 0) {

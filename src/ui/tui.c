@@ -92,6 +92,9 @@ void tui_render(system_snapshot_t *snapshot, tui_state_t *state) {
          (snapshot->mem.mem_total_kb - snapshot->mem.mem_available_kb) / 1024,
          snapshot->mem.mem_total_kb / 1024);
 
+  mvprintw(4, 2, "PROCS [%d]%s", snapshot->count,
+           snapshot->truncated ? " (TRUNCATED)" : "");
+
   /* Sort Snapshot */
   qsort_r(snapshot->procs, snapshot->count, sizeof(process_info_t),
           compare_procs, &state->sort_mode);

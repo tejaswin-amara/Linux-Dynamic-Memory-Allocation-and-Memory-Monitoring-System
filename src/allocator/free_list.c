@@ -1,4 +1,5 @@
 #include "allocator.h"
+#include "free_list_internal.h"
 #include <unistd.h>
 
 static const size_t size_class_limits[NUM_SIZE_CLASSES] = {

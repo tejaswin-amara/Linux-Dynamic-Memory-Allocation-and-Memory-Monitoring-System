@@ -33,24 +33,22 @@ For our high-performance systems engineering capstone, we required a custom dyna
    - *Pros*: Fast lookup within discrete size bins, bounded search time, low fragmentation via Best-Fit within bins, immediate $O(1)$ bidirectional coalescing via boundary tags, and direct OS paging for large blocks.
 
 ## Decision Outcome
-We decided to implement a **10-bin Segregated Free List allocator with Hybrid `sbrk`/`mmap` growth and boundary-tag canaries**:
+We decided to implement an **8-bin Segregated Free List allocator with Hybrid `sbrk`/`mmap` growth and boundary-tag canaries**:
 
 ### 1. Hybrid Allocation Mechanism
 - **Small & Medium Chunks (`< 128 KB`)**: Allocated via `sbrk(2)` advancing the process program break. Free chunks are organized in segregated doubly-linked lists.
 - **Large Chunks (`≥ 128 KB`)**: Allocated directly from the kernel using anonymous memory maps via `mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)`. Upon `my_free()`, memory is immediately unmapped using `munmap()`, preventing virtual memory fragmentation.
 
-### 2. Ten Discrete Segregated Size Classes
+### 2. Eight Discrete Segregated Size Classes
 The segregated bins partition chunks according to the following thresholds:
-- Class 0: $\le 32\text{ B}$
-- Class 1: $\le 64\text{ B}$
-- Class 2: $\le 128\text{ B}$
-- Class 3: $\le 256\text{ B}$
-- Class 4: $\le 512\text{ B}$
-- Class 5: $\le 1024\text{ B (1 KB)}$
-- Class 6: $\le 2048\text{ B (2 KB)}$
-- Class 7: $\le 4096\text{ B (4 KB)}$
-- Class 8: $\le 8192\text{ B (8 KB)}$
-- Class 9: $> 8192\text{ B} \dots < 128\text{ KB}$
+- Class 0: $\le 128\text{ B}$
+- Class 1: $\le 256\text{ B}$
+- Class 2: $\le 512\text{ B}$
+- Class 3: $\le 1024\text{ B (1 KB)}$
+- Class 4: $\le 2048\text{ B (2 KB)}$
+- Class 5: $\le 4096\text{ B (4 KB)}$
+- Class 6: $\le 8192\text{ B (8 KB)}$
+- Class 7: $> 8192\text{ B} \dots \le 128\text{ KB}$
 
 Within each bin, a **Best-Fit** search is conducted. If no suitable block is found in the designated bin, the allocator escalates to higher bins before requesting fresh heap memory via `sbrk()`.
 

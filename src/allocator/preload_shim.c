@@ -11,9 +11,6 @@
 #include <string.h>
 
 static void *(*real_malloc)(size_t) = NULL;
-static void (*real_free)(void *) = NULL;
-static void *(*real_calloc)(size_t, size_t) = NULL;
-static void *(*real_realloc)(void *, size_t) = NULL;
 
 static _Thread_local bool is_initializing = false;
 static _Thread_local char bootstrap_buf[8192] __attribute__((aligned(16)));
@@ -23,9 +20,6 @@ static void init_real_functions(void) {
   if (!real_malloc && !is_initializing) {
     is_initializing = true;
     *(void **)(&real_malloc) = dlsym(RTLD_NEXT, "malloc");
-    *(void **)(&real_free) = dlsym(RTLD_NEXT, "free");
-    *(void **)(&real_calloc) = dlsym(RTLD_NEXT, "calloc");
-    *(void **)(&real_realloc) = dlsym(RTLD_NEXT, "realloc");
     is_initializing = false;
   }
 }
@@ -35,7 +29,7 @@ static bool is_bootstrap_ptr(const void *ptr) {
           ptr < (void *)(bootstrap_buf + sizeof(bootstrap_buf)));
 }
 
-void *malloc(size_t size) {
+ALLOC_API void *malloc(size_t size) {
   if (is_initializing) {
     if (buf_offset + size <= sizeof(bootstrap_buf)) {
       void *p = &bootstrap_buf[buf_offset];
@@ -48,7 +42,7 @@ void *malloc(size_t size) {
   return my_malloc(size);
 }
 
-void free(void *ptr) {
+ALLOC_API void free(void *ptr) {
   if (!ptr)
     return;
   if (is_bootstrap_ptr(ptr)) {
@@ -58,8 +52,11 @@ void free(void *ptr) {
   my_free(ptr);
 }
 
-void *calloc(size_t nmemb, size_t size) {
+ALLOC_API void *calloc(size_t nmemb, size_t size) {
   if (is_initializing) {
+    if (nmemb != 0 && size > SIZE_MAX / nmemb) {
+      return NULL;
+    }
     size_t total = nmemb * size;
     void *p = malloc(total);
     if (p)
@@ -70,7 +67,7 @@ void *calloc(size_t nmemb, size_t size) {
   return my_calloc(nmemb, size);
 }
 
-void *realloc(void *ptr, size_t size) {
+ALLOC_API void *realloc(void *ptr, size_t size) {
   if (!ptr)
     return malloc(size);
   if (is_bootstrap_ptr(ptr)) {
@@ -87,7 +84,7 @@ void *realloc(void *ptr, size_t size) {
   return my_realloc(ptr, size);
 }
 
-int posix_memalign(void **memptr, size_t alignment, size_t size) {
+ALLOC_API int posix_memalign(void **memptr, size_t alignment, size_t size) {
   if (alignment < sizeof(void *) || (alignment & (alignment - 1)) != 0 ||
       alignment > ALIGNMENT) {
     return EINVAL;
@@ -101,7 +98,7 @@ int posix_memalign(void **memptr, size_t alignment, size_t size) {
   return 0;
 }
 
-void *aligned_alloc(size_t alignment, size_t size) {
+ALLOC_API void *aligned_alloc(size_t alignment, size_t size) {
   if (alignment == 0 || (alignment & (alignment - 1)) != 0 ||
       (size % alignment) != 0 || alignment > ALIGNMENT) {
     return NULL;
@@ -109,7 +106,7 @@ void *aligned_alloc(size_t alignment, size_t size) {
   return malloc(size);
 }
 
-void *reallocarray(void *ptr, size_t nmemb, size_t size) {
+ALLOC_API void *reallocarray(void *ptr, size_t nmemb, size_t size) {
   if (nmemb != 0 && size > SIZE_MAX / nmemb) {
     errno = ENOMEM;
     return NULL;

@@ -143,12 +143,14 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
       json + offset, cap - offset,
       "{\n"
       "  \"timestamp\": %ld,\n"
+      "  \"truncated\": %s,\n"
       "  \"cpu\": {\"total_usage_pct\": %.2f, \"user_pct\": %.2f, "
       "\"system_pct\": %.2f, \"idle_pct\": %.2f, \"core_count\": %d},\n"
       "  \"mem\": {\"total_mb\": %lu, \"used_mb\": %lu, \"free_mb\": %lu, "
       "\"usage_pct\": %.2f},\n"
       "  \"processes\": [\n",
       (long)(snap ? snap->timestamp : 0),
+      (snap && snap->truncated) ? "true" : "false",
       snap ? snap->cpu.total_usage_pct : 0.0f, snap ? snap->cpu.user_pct : 0.0f,
       snap ? snap->cpu.system_pct : 0.0f, snap ? snap->cpu.idle_pct : 0.0f,
       snap ? snap->cpu.core_count : 0,

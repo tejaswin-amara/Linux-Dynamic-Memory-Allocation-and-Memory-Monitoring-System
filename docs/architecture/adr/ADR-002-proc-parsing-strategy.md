@@ -51,7 +51,7 @@ Stack buffers are sized at 4096 bytes (matching standard Linux virtual memory pa
 | `/proc/meminfo` | `MemTotal`, `MemFree`, `MemAvailable`, `Buffers`, `Cached`, `SwapTotal`, `SwapFree` | Physical RAM and Swap saturation percentages |
 | `/proc/[pid]/stat` | `comm`, `state`, `ppid`, `utime`, `stime`, `priority`, `nice`, `num_threads` | Process lifecycle state, parentage, and execution time |
 | `/proc/[pid]/status` | `VmSize`, `VmRSS`, `voluntary_ctxt_switches`, `nonvoluntary_ctxt_switches` | Memory footprints and voluntary/involuntary context switches |
-| `/proc/[pid]/smaps_rollup` | `Pss`, `Rss`, `Shared_Clean`, `Shared_Dirty` | Proportional Set Size (PSS) accounting |
+| `/proc/[pid]/maps` | Memory mapping segments | Memory map layout retrieval (`proc_parser_get_maps`) |
 
 ### 3. Differential Multi-Core CPU Computation
 To report accurate instantaneous CPU usage, the engine maintains previous sampling snapshots (`prev_cpu_jiffies` and `prev_processes` table) to calculate differential values:
