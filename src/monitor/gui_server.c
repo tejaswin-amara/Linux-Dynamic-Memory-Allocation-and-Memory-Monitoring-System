@@ -193,10 +193,7 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
   pthread_rwlock_unlock(&server->snapshot_lock);
 
   if (offset + 32 <= cap) {
-    w = snprintf(json + offset, cap - offset, "  ]\n}\n");
-    if (w > 0 && offset + (size_t)w < cap) {
-      offset += (size_t)w;
-    }
+    snprintf(json + offset, cap - offset, "  ]\n}\n");
   }
 
   send_response(client_fd, "200 OK", "application/json", json,

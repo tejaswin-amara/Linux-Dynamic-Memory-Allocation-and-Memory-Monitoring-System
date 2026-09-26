@@ -306,10 +306,10 @@ void *my_realloc(void *ptr, size_t size) {
   }
 
   if (header->is_mmap) {
+#if defined(__linux__) && defined(_GNU_SOURCE)
     size_t aligned_payload = ALIGN(size);
     size_t total_size =
         sizeof(block_header_t) + aligned_payload + sizeof(block_footer_t);
-#if defined(__linux__) && defined(_GNU_SOURCE)
     pthread_mutex_lock(&alloc_mutex);
     block_header_t *new_header =
         mremap(header, header->block_size, total_size, MREMAP_MAYMOVE);

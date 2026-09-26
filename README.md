@@ -33,7 +33,7 @@ Developed as a Systems Software Capstone for **KLEF 25CS2104E: Outside-In Operat
 ## Key Features
 
 - **Segregated Free Lists (10 Size Classes)**: Drastically reduces external fragmentation and lookup latency compared to standard linked-list allocators.
-- **Canary-Guarded Boundary Tags**: 32-byte header canary (`0xDEADBEEF`) and 16-byte footer canary (`0xBEEFDEAD`) provide instant crash diagnostics on heap corruption.
+- **Canary-Guarded Boundary Tags**: 32-bit header canary (`0xDEADBEEF`) and 32-bit footer canary (`0xBEEFDEAD`) provide instant crash diagnostics on heap corruption.
 - **Zero-Allocation Sampling Engine**: Telemetry reads consume zero heap allocations in steady state; reads are dispatched into pre-allocated stack buffers to guarantee non-invasive profiling.
 - **Microsecond Differential CPU Calculation**: Accurately computes true multi-core differential CPU utilization against system jiffies delta.
 - **Dual Interface Concurrency**: The ncurses TUI and embedded HTTP server concurrently access telemetry snapshots guarded by a thread-safe read-write lock (`pthread_rwlock_t`).

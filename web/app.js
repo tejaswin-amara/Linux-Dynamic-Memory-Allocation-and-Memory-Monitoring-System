@@ -51,8 +51,10 @@ function updateDashboard(data) {
 
 function renderProcessTable() {
     const tbody = document.getElementById('proc-tbody');
-    const searchFilter = document.getElementById('proc-search').value.toLowerCase();
-    const sortMode = document.getElementById('sort-select').value;
+    const searchInput = document.getElementById('proc-search');
+    const searchFilter = searchInput ? searchInput.value.toLowerCase() : '';
+    const sortSelect = document.getElementById('sort-select');
+    const sortMode = sortSelect ? sortSelect.value : 'cpu';
 
     let filtered = currentProcesses.filter(p => 
         p.comm.toLowerCase().includes(searchFilter) || p.pid.toString().includes(searchFilter)
@@ -66,21 +68,55 @@ function renderProcessTable() {
         filtered.sort((a, b) => a.pid - b.pid);
     }
 
-    document.getElementById('process-count').innerText = filtered.length;
+    const countElem = document.getElementById('process-count');
+    if (countElem) {
+        countElem.innerText = filtered.length;
+    }
 
-    tbody.innerHTML = filtered.slice(0, 100).map(p => `
-        <tr>
-            <td>${p.pid}</td>
-            <td style="color: #58a6ff; font-weight: 600;">${escapeHtml(p.comm)}</td>
-            <td><span class="badge" style="background:#30363d;">${p.state}</span></td>
-            <td>${p.num_threads}</td>
-            <td>${p.cpu_usage_pct.toFixed(1)}%</td>
-            <td>${p.vm_rss_kb.toLocaleString()}</td>
-            <td>
-                <button class="btn btn-sm btn-secondary" onclick="openSignalModal(${p.pid}, '${escapeHtml(p.comm)}')">Signal</button>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = '';
+    filtered.slice(0, 100).forEach(p => {
+        const tr = document.createElement('tr');
+
+        const tdPid = document.createElement('td');
+        tdPid.textContent = p.pid;
+        tr.appendChild(tdPid);
+
+        const tdComm = document.createElement('td');
+        tdComm.style.color = '#58a6ff';
+        tdComm.style.fontWeight = '600';
+        tdComm.textContent = p.comm;
+        tr.appendChild(tdComm);
+
+        const tdState = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.style.background = '#30363d';
+        badge.textContent = p.state;
+        tdState.appendChild(badge);
+        tr.appendChild(tdState);
+
+        const tdThreads = document.createElement('td');
+        tdThreads.textContent = p.num_threads;
+        tr.appendChild(tdThreads);
+
+        const tdCpu = document.createElement('td');
+        tdCpu.textContent = `${p.cpu_usage_pct.toFixed(1)}%`;
+        tr.appendChild(tdCpu);
+
+        const tdRss = document.createElement('td');
+        tdRss.textContent = p.vm_rss_kb.toLocaleString();
+        tr.appendChild(tdRss);
+
+        const tdActions = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-sm btn-secondary';
+        btn.textContent = 'Signal';
+        btn.addEventListener('click', () => openSignalModal(p.pid, p.comm));
+        tdActions.appendChild(btn);
+        tr.appendChild(tdActions);
+
+        tbody.appendChild(tr);
+    });
 }
 
 function openSignalModal(pid, comm) {
@@ -113,13 +149,38 @@ async function sendSignal(sigName) {
 }
 
 function escapeHtml(str) {
-    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    if (typeof str !== 'string') return str;
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
-document.getElementById('proc-search').addEventListener('input', renderProcessTable);
-document.getElementById('sort-select').addEventListener('change', renderProcessTable);
-document.getElementById('refresh-btn').addEventListener('click', fetchMetrics);
+if (typeof document !== 'undefined') {
+    const searchElem = document.getElementById('proc-search');
+    if (searchElem) searchElem.addEventListener('input', renderProcessTable);
 
-// Initial start & polling loop
-fetchMetrics();
-setInterval(fetchMetrics, 1000);
+    const sortElem = document.getElementById('sort-select');
+    if (sortElem) sortElem.addEventListener('change', renderProcessTable);
+
+    const refreshElem = document.getElementById('refresh-btn');
+    if (refreshElem) refreshElem.addEventListener('click', fetchMetrics);
+
+    // Initial start & polling loop
+    fetchMetrics();
+    setInterval(fetchMetrics, 1000);
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        escapeHtml,
+        renderProcessTable,
+        openSignalModal,
+        closeModal,
+        updateDashboard,
+        get currentProcesses() { return currentProcesses; },
+        set currentProcesses(v) { currentProcesses = v; }
+    };
+}

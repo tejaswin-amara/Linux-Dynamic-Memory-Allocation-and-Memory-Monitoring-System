@@ -45,7 +45,10 @@ cat /proc/<PID>/maps | head -n 30
 - **Step 2 (Graceful Termination)**:
   - In the Web GUI, click the process's **[STOP]** or dispatch `SIGTERM` via:
     ```bash
-    curl -X POST http://localhost:8080/api/process/signal \
+    # Retrieve auth token printed at startup (e.g. Generated auth token: token-12345)
+# Pass token in Authorization header:
+curl -X POST http://localhost:8080/api/process/signal \
+     -H "Authorization: Bearer <token>" \
          -H "Content-Type: application/json" \
          -d '{"pid": <PID>, "signal": "SIGTERM"}'
     ```
