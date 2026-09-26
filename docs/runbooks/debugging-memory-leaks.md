@@ -14,9 +14,10 @@ This operational runbook provides engineers and developers with comprehensive fo
 ### Forensic Triage Table
 | Log Output | Failure Type | Root Cause Analysis |
 |---|---|---|
-| `[ERROR] Heap corruption: Invalid magic header canary at <PTR>` | **Buffer Underflow** or **Wild Pointer Write** | An application wrote preceding the allocated block boundary (e.g. `ptr[-1] = 0`), corrupting `magic_header`. |
-| `[ERROR] Heap corruption: Invalid magic footer canary at <PTR>` | **Buffer Overflow** or **Off-by-One Write** | An application wrote past the allocated block length (e.g. `ptr[size] = 0`), overwriting `magic_footer`. |
-| `[ERROR] Heap canary corruption detected in free list at <PTR>` | **Use-After-Free** | A block already returned to the free list had its payload or boundary tags overwritten while residing in a segregated bin. |
+| `[FATAL] Heap corruption: Invalid magic header canary in my_free` | **Buffer Underflow** or **Wild Pointer Write** | An application wrote preceding the allocated block boundary (e.g. `ptr[-1] = 0`), corrupting `magic_header`. The process is immediately aborted via `fatal_abort()`. |
+| `[FATAL] Heap corruption: Invalid magic footer canary in my_free` | **Buffer Overflow** or **Off-by-One Write** | An application wrote past the allocated block length (e.g. `ptr[size] = 0`), overwriting `magic_footer`. The process is immediately aborted via `fatal_abort()`. |
+| `[FATAL] Double free or use after free detected in my_free` | **Double Free** or **Use-After-Free** | An application called `my_free()` or `my_realloc()` on a pointer whose block header is already marked `is_free == 1`. The process is immediately aborted via `fatal_abort()`. |
+| `[FATAL] Heap canary corruption detected in free_list_find_fit` | **Use-After-Free / Memory Overwrite** | A block residing in a segregated bin had its `magic_header` overwritten by dangling pointers or wild writes. The process is immediately aborted via `fatal_abort()`. |
 | `[ERROR] munmap syscall failed at <PTR>` | **Unmapped Address Invalidation** | Attempted to unmap an address range not created via anonymous `mmap` or with corrupted size metadata. |
 
 ---
@@ -38,7 +39,7 @@ valgrind --leak-check=full \
 - **`definitely lost`**: Heap blocks allocated where no pointer to the block exists at program exit. **Must be 0 bytes.**
 - **`indirectly lost`**: Heap blocks that are only reachable via pointers in definitely lost blocks. **Must be 0 bytes.**
 - **`possibly lost`**: Pointers that point into the interior of a block rather than the start (common with interior pointers or misaligned structs).
-- **`still reachable`**: Pointers still maintained by global tables or static variables at normal exit. `libmyalloc.so` cleans up all segregated heads on `allocator_destroy()`.
+- **`still reachable`**: Pointers still maintained by global tables or static variables at normal exit. Calling `allocator_destroy()` resets statistics and clears segregated list heads.
 
 ---
 
@@ -58,6 +59,7 @@ make asan
 ./test_allocator
 ./test_proc_parser
 ./test_signal_handler
+./test_gui_server
 ```
 
 ### Interpreting Sanitizer Reports
@@ -69,40 +71,9 @@ When a fault occurs, ASan outputs a structured crash dump:
 
 ---
 
-## 4. GDB In-Flight Heap Inspection
+## 4. In-Flight Heap Inspection with GDB
 
-When debugging a crashed binary or core dump, inspect allocator structures directly in GDB:
-
-### 1. Launching GDB with Target Binary
-```bash
-gdb ./mem_monitor
-(gdb) break my_malloc
-(gdb) break my_free
-(gdb) run
-```
-
-### 2. Inspecting Block Header and Canaries
-```gdb
-# Given a user pointer $rax / ptr:
-(gdb) set $header = (block_header_t *)((char *)ptr - sizeof(block_header_t))
-(gdb) print *$header
-
-# Expected output:
-# $1 = {magic_header = 3735928559, is_free = 0, requested_size = 64, block_size = 112, is_mmap = 0, padding = 0, next = 0x0, prev = 0x0}
-# Note: 3735928559 == 0xDEADBEEF in decimal
-
-# Check footer canary:
-(gdb) set $footer = (block_footer_t *)((char *)$header + $header->block_size - sizeof(block_footer_t))
-(gdb) print/x $footer->magic_footer
-# Expected: 0xBEEFDEAD
-```
-
-### 3. Walking Segregated Free Lists
-```gdb
-# Inspect bin 2 (blocks <= 128 bytes):
-(gdb) print segregated_heads[2]
-(gdb) print *segregated_heads[2]
-```
+When debugging a target binary running under `libmyalloc.so`, attach debugger tools using the self-hosted runner script `scripts/run_selfhosted.sh` or inspect allocators directly in code tests.
 
 ---
 
@@ -120,5 +91,4 @@ LD_DEBUG=bindings LD_PRELOAD=./libmyalloc.so ls 2>&1 | grep "my_malloc"
 # 3. Catch segmentation faults with core dump creation:
 ulimit -c unlimited
 LD_PRELOAD=./libmyalloc.so /path/to/flaky_app
-gdb /path/to/flaky_app core -ex "bt" -ex "quit"
 ```
