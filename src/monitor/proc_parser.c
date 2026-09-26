@@ -263,9 +263,14 @@ int proc_parser_take_snapshot(system_snapshot_t *snapshot) {
   int current_count = 0;
   memset(current_processes, 0, sizeof(current_processes));
 
-  while ((entry = readdir(dir)) != NULL && count < MAX_PROCS) {
+  while ((entry = readdir(dir)) != NULL) {
     if (!isdigit((unsigned char)entry->d_name[0]))
       continue;
+
+    if (count >= MAX_PROCS) {
+      snapshot->truncated = true;
+      break;
+    }
 
     pid_t pid = (pid_t)atoi(entry->d_name);
     process_info_t proc;

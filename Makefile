@@ -41,7 +41,7 @@ directories:
 # ------------------------------------------------------------------------------
 $(LIB_ALLOC): $(SRC_ALLOC_DIR)/allocator.c $(SRC_ALLOC_DIR)/free_list.c $(SRC_ALLOC_DIR)/preload_shim.c
 	@echo "==> Building Shared Library: $@"
-	$(CC) $(CFLAGS) $(INC_FLAGS) -shared -o $@ $^ -ldl
+	$(CC) $(CFLAGS) -fvisibility=hidden $(INC_FLAGS) -shared -o $@ $^ -ldl
 
 # ------------------------------------------------------------------------------
 # Module B & C: System Monitor & Interface Layer

@@ -23,7 +23,7 @@
 
 Developed as a Systems Software Capstone for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**, this repository unifies two fundamental operating systems engineering challenges into a single cohesive, high-performance C suite:
 
-1. **Custom Dynamic Memory Allocator (`libmyalloc.so`)**: A drop-in POSIX `malloc`/`free`/`calloc`/`realloc` replacement library. Employs 10-bin segregated free lists, best-fit bin search, 16-byte payload alignment, boundary-tag canaries (`0xDEADBEEF` / `0xBEEFDEAD`) for buffer overrun / double-free detection, $O(1)$ bidirectional block coalescing, and a hybrid threshold strategy switching between `sbrk(2)` (< 128 KB) and anonymous `mmap(2)` (≥ 128 KB). Intercepts external Linux binaries via `LD_PRELOAD`.
+1. **Custom Dynamic Memory Allocator (`libmyalloc.so`)**: A drop-in POSIX `malloc`/`free`/`calloc`/`realloc` replacement library. Employs 8-bin segregated free lists, best-fit bin search, 16-byte payload alignment, boundary-tag canaries (`0xDEADBEEF` / `0xBEEFDEAD`) for buffer overrun / double-free detection, $O(1)$ bidirectional block coalescing, and a hybrid threshold strategy switching between `sbrk(2)` (< 128 KB) and anonymous `mmap(2)` (≥ 128 KB). Intercepts external Linux binaries via `LD_PRELOAD`.
 2. **Virtual File System Process Monitor (`mem_monitor`)**: A high-efficiency system monitoring engine that directly samples kernel statistics from `/proc` using raw, unbuffered POSIX system calls (`open`, `read`, `close`) without invoking any dynamic heap allocations in its sampling loop. Features a dual-interface presentation layer:
    - **Interactive Terminal UI (TUI)**: Built with `ncurses`, providing non-blocking keyboard controls, CPU/memory percentage bars, dynamic sorting, and real-time POSIX signal dispatching.
    - **Embedded Real-Time Web GUI**: Powered by a multi-threaded embedded POSIX socket HTTP daemon (`gui_server.c`) streaming telemetry via a REST API (`/api/metrics`) to a responsive HTML5/CSS3 dark-mode dashboard.
@@ -32,7 +32,7 @@ Developed as a Systems Software Capstone for **KLEF 25CS2104E: Outside-In Operat
 
 ## Key Features
 
-- **Segregated Free Lists (10 Size Classes)**: Drastically reduces external fragmentation and lookup latency compared to standard linked-list allocators.
+- **Segregated Free Lists (8 Size Classes)**: Drastically reduces external fragmentation and lookup latency compared to standard linked-list allocators.
 - **Canary-Guarded Boundary Tags**: 32-bit header canary (`0xDEADBEEF`) and 32-bit footer canary (`0xBEEFDEAD`) provide instant crash diagnostics on heap corruption.
 - **Zero-Allocation Sampling Engine**: Telemetry reads consume zero heap allocations in steady state; reads are dispatched into pre-allocated stack buffers to guarantee non-invasive profiling.
 - **Microsecond Differential CPU Calculation**: Accurately computes true multi-core differential CPU utilization against system jiffies delta.
@@ -131,8 +131,8 @@ This project strictly adheres to the course outcome requirements for **KLEF 25CS
 | **CO1: OS Service Layer** | Direct syscall tracing, `errno` error boundaries, and kernel-space interaction | Direct invocations of `sbrk(2)`, `mmap(2)`, `munmap(2)`, `open(2)`, `read(2)`, `close(2)`, `kill(2)`, and `sysconf(3)`. Strict validation of return codes and errno propagation. Verified with `strace`. | [`src/allocator/allocator.c`](src/allocator/allocator.c)<br>[`src/monitor/proc_parser.c`](src/monitor/proc_parser.c) |
 | **CO2: Process Control** | Process lifecycle, task states, differential scheduling calculations | Scanning `/proc` directories, parsing process states (`R`, `S`, `D`, `Z`, `T`), calculating differential CPU usage against jiffies delta, and managing background sampling threads. | [`src/monitor/proc_parser.c`](src/monitor/proc_parser.c)<br>[`include/proc_parser.h`](include/proc_parser.h) |
 | **CO3: Inter-Process Communication** | Signal dispatching, handling, and network streaming | Real-time transmission of POSIX signals (`SIGINT`, `SIGTERM`, `SIGKILL`, `SIGSTOP`, `SIGCONT`) using `kill(2)`. Inter-thread synchronization and IPC streaming via POSIX TCP sockets. | [`src/monitor/signal_handler.c`](src/monitor/signal_handler.c)<br>[`src/monitor/gui_server.c`](src/monitor/gui_server.c) |
-| **CO4: Memory Management** | Custom dynamic memory allocator & virtual memory parsing | Segregated free lists (10 size bins), best-fit search, boundary tags with canary words (`0xDEADBEEF`/`0xBEEFDEAD`), hybrid `sbrk()` (< 128 KB) vs `mmap()` (≥ 128 KB), and `/proc/[pid]/maps` parsing. | [`src/allocator/allocator.c`](src/allocator/allocator.c)<br>[`src/allocator/free_list.c`](src/allocator/free_list.c) |
-| **CO5: File Systems** | Direct VFS parsing via low-level unbuffered POSIX file I/O | Unbuffered `open()`, `read()`, and `close()` parsing of `/proc/stat`, `/proc/meminfo`, `/proc/[pid]/stat`, `/proc/[pid]/status`, and `/proc/[pid]/smaps_rollup` using fixed stack buffers. | [`src/monitor/proc_parser.c`](src/monitor/proc_parser.c)<br>[`docs/architecture/adr/ADR-002-proc-parsing-strategy.md`](docs/architecture/adr/ADR-002-proc-parsing-strategy.md) |
+| **CO4: Memory Management** | Custom dynamic memory allocator & virtual memory parsing | Segregated free lists (8 size bins), best-fit search, boundary tags with canary words (`0xDEADBEEF`/`0xBEEFDEAD`), hybrid `sbrk()` (< 128 KB) vs `mmap()` (≥ 128 KB), and `/proc/[pid]/maps` parsing. | [`src/allocator/allocator.c`](src/allocator/allocator.c)<br>[`src/allocator/free_list.c`](src/allocator/free_list.c) |
+| **CO5: File Systems** | Direct VFS parsing via low-level unbuffered POSIX file I/O | Unbuffered `open()`, `read()`, and `close()` parsing of `/proc/stat`, `/proc/meminfo`, `/proc/[pid]/stat`, `/proc/[pid]/status`, and `/proc/[pid]/maps` using fixed stack buffers. | [`src/monitor/proc_parser.c`](src/monitor/proc_parser.c)<br>[`docs/architecture/adr/ADR-002-proc-parsing-strategy.md`](docs/architecture/adr/ADR-002-proc-parsing-strategy.md) |
 | **CO6: Concurrency** | POSIX multithreading and race condition mitigation | Thread-safe heap allocation guarded by `pthread_mutex_t`; concurrent telemetry updates and HTTP client reads synchronized via read-write locks (`pthread_rwlock_t`). | [`src/allocator/allocator.c`](src/allocator/allocator.c)<br>[`src/monitor/gui_server.c`](src/monitor/gui_server.c) |
 
 ---
@@ -151,7 +151,7 @@ graph TD
 
     subgraph Custom Allocator ["Custom Allocator (libmyalloc.so)"]
         ALLOC["my_malloc / my_free / my_realloc"]
-        SEGLIST["Segregated Free Lists<br/>(10 Discrete Size Bins)"]
+        SEGLIST["Segregated Free Lists<br/>(8 Discrete Size Bins)"]
         SPLIT["Block Splitter & Coalescer<br/>(Canaries: 0xDEADBEEF / 0xBEEFDEAD)"]
         
         SHIM --> ALLOC
@@ -261,21 +261,19 @@ Every memory block returned by `my_malloc()` is padded to guarantee **16-byte bo
 +------------------------------------------------+----------------------------+-------------------+
 ```
 
-#### Segregated Free Lists (10 Size Bins)
-Free chunks allocated via `sbrk()` are organized into 10 doubly-linked bins based on total block size:
+#### Segregated Free Lists (8 Size Bins)
+Free chunks allocated via `sbrk()` are organized into 8 doubly-linked bins based on total block size:
 
 | Bin Index | Maximum Block Size | Target Allocation Class | Search Strategy |
 |:---:|:---|:---|:---|
-| **0** | $\le 32\text{ Bytes}$ | Tiny primitives, pointers, micro-strings | Exact / Best-Fit |
-| **1** | $\le 64\text{ Bytes}$ | Small structures, short strings | Best-Fit |
-| **2** | $\le 128\text{ Bytes}$ | Medium nodes, small buffers | Best-Fit |
-| **3** | $\le 256\text{ Bytes}$ | Path buffers, small structs | Best-Fit |
-| **4** | $\le 512\text{ Bytes}$ | Standard I/O chunks | Best-Fit |
-| **5** | $\le 1024\text{ Bytes (1 KB)}$ | Page fragments, small tables | Best-Fit |
-| **6** | $\le 2048\text{ Bytes (2 KB)}$ | Half-page buffers | Best-Fit |
-| **7** | $\le 4096\text{ Bytes (4 KB)}$ | Standard Linux OS pages | Best-Fit |
-| **8** | $\le 8192\text{ Bytes (8 KB)}$ | Multi-page scratch buffers | Best-Fit |
-| **9** | $> 8192\text{ Bytes} \dots < 128\text{ KB}$ | Large heap buffers below `MMAP_THRESHOLD` | Best-Fit with Escalation |
+| **0** | $\le 128\text{ Bytes}$ | Medium nodes, small buffers | Best-Fit |
+| **1** | $\le 256\text{ Bytes}$ | Path buffers, small structs | Best-Fit |
+| **2** | $\le 512\text{ Bytes}$ | Standard I/O chunks | Best-Fit |
+| **3** | $\le 1024\text{ Bytes (1 KB)}$ | Page fragments, small tables | Best-Fit |
+| **4** | $\le 2048\text{ Bytes (2 KB)}$ | Half-page buffers | Best-Fit |
+| **5** | $\le 4096\text{ Bytes (4 KB)}$ | Standard Linux OS pages | Best-Fit |
+| **6** | $\le 8192\text{ Bytes (8 KB)}$ | Multi-page scratch buffers | Best-Fit |
+| **7** | $> 8192\text{ Bytes} \dots \le 128\text{ KB}$ | Large heap buffers below `MMAP_THRESHOLD` | Best-Fit with Escalation |
 
 #### Bidirectional $O(1)$ Coalescing
 When `my_free()` is invoked:
@@ -306,7 +304,6 @@ Traditional utilities rely on buffered glibc calls (`fopen`/`fgets`), triggering
 | `/proc/meminfo` | `MemTotal`, `MemFree`, `MemAvailable`, `Buffers`, `Cached`, `SwapTotal`, `SwapFree` | Physical RAM and Swap capacity and saturation |
 | `/proc/[pid]/stat` | `comm`, `state`, `ppid`, `utime`, `stime`, `priority`, `nice`, `num_threads` | Process state, parentage, and thread count |
 | `/proc/[pid]/status` | `VmSize`, `VmRSS`, `voluntary_ctxt_switches`, `nonvoluntary_ctxt_switches` | Resident memory and scheduler context switches |
-| `/proc/[pid]/smaps_rollup` | `Pss`, `Rss`, `Shared_Clean`, `Shared_Dirty` | Proportional Set Size (PSS) memory accounting |
 | `/proc/[pid]/maps` | Virtual address intervals, permissions (`rwxp`), offset, device, inode | Virtual memory map address ranges |
 
 #### Differential CPU Calculation
@@ -539,7 +536,7 @@ bash scripts/stress_test.sh
 ├── src/
 │   ├── allocator/
 │   │   ├── allocator.c                    # my_malloc, my_free, coalescing & mmap logic
-│   │   ├── free_list.c                    # Segregated free lists (10 size bins) implementation
+│   │   ├── free_list.c                    # Segregated free lists (8 size bins) implementation
 │   │   └── preload_shim.c                 # LD_PRELOAD dlsym interception hooks
 │   ├── monitor/
 │   │   ├── main.c                         # Daemon CLI entrypoint, argument parsing & lifecycle

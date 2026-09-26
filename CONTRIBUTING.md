@@ -71,7 +71,7 @@ Every pull request must pass the four-tier verification pipeline:
 # 1. Clean build
 make clean && make all
 
-# 2. Run Unity unit tests and integration tests
+# 2. Run Unity unit tests, web security tests (node tests/test_xss.js), and integration tests
 make test
 
 # 3. Verify under AddressSanitizer (ASan) & UBSan
@@ -79,6 +79,7 @@ make clean && make asan
 ./test_allocator
 ./test_proc_parser
 ./test_signal_handler
+./test_gui_server
 
 # 4. Memory leak verification under Valgrind
 make clean && make all

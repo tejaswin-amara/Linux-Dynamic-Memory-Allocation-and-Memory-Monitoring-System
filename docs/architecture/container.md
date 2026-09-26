@@ -21,7 +21,7 @@ C4Container
     Container_Boundary(c_alloc, "Custom Dynamic Memory Allocator Subsystem (libmyalloc.so)") {
         Component(shim, "Preload Shim", "C / dlsym(RTLD_NEXT)", "Intercepts POSIX malloc, free, calloc, and realloc calls from target binaries")
         Component(alloc_core, "Allocator Core", "C / sys/mman.h", "Manages 16-byte alignment, canary validation, sbrk (<128KB) vs mmap (>=128KB) decisions, and block coalescing")
-        Component(seg_lists, "Segregated Free Lists", "C / Free List Engine", "Maintains 10 doubly-linked size classes (32B to 128KB) and executes Best-Fit search")
+        Component(seg_lists, "Segregated Free Lists", "C / Free List Engine", "Maintains 8 doubly-linked size classes (128B to 128KB) and executes Best-Fit search")
     }
 
     Container_Boundary(c_mon, "System Task Manager Daemon (mem_monitor)") {
@@ -58,7 +58,7 @@ C4Container
 |---|---|---|---|
 | **Preload Shim** | [`src/allocator/preload_shim.c`](../../src/allocator/preload_shim.c) | Overrides libc `malloc`, `free`, `calloc`, `realloc`. Uses `dlsym(RTLD_NEXT)` for bootstrapping fallback. | Thread-safe, transparent symbol substitution. |
 | **Allocator Core** | [`src/allocator/allocator.c`](../../src/allocator/allocator.c) | Enforces 16-byte alignment (`ALIGN`), stamps canary tags (`0xDEADBEEF`/`0xBEEFDEAD`), branches on 128 KB threshold (`sbrk` vs `mmap`), and executes bidirectional coalescing. | Serialized via global heap mutex (`pthread_mutex_t`). |
-| **Segregated Free Lists** | [`src/allocator/free_list.c`](../../src/allocator/free_list.c) | Organizes free blocks into 10 discrete bins (32B, 64B, 128B, ..., 128KB). Implements Best-Fit search with higher-bin escalation. | Protected under allocator mutex lock. |
+| **Segregated Free Lists** | [`src/allocator/free_list.c`](../../src/allocator/free_list.c) | Organizes free blocks into 8 discrete bins (128B, 256B, 512B, ..., 128KB). Implements Best-Fit search with higher-bin escalation. | Protected under allocator mutex lock. |
 
 ### 3.2 Task Manager Daemon (`mem_monitor`)
 

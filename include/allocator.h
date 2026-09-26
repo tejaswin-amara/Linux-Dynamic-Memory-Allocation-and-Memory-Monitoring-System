@@ -9,6 +9,8 @@
 
 #define NUM_SIZE_CLASSES 8
 
+#define ALLOC_API __attribute__((visibility("default")))
+
 typedef struct block_header {
   uint32_t magic_header;     /* Canary: 0xDEADBEEF */
   uint32_t is_free;          /* 1 if free, 0 if in use */
@@ -34,20 +36,14 @@ typedef struct {
   size_t sbrk_allocations;
 } allocator_stats_t;
 
-void *my_malloc(size_t size);
-void my_free(void *ptr);
-void *my_calloc(size_t nmemb, size_t size);
-void *my_realloc(void *ptr, size_t size);
+ALLOC_API void *my_malloc(size_t size);
+ALLOC_API void my_free(void *ptr);
+ALLOC_API void *my_calloc(size_t nmemb, size_t size);
+ALLOC_API void *my_realloc(void *ptr, size_t size);
 
-void allocator_init(void);
-void allocator_destroy(void);
-allocator_stats_t allocator_get_stats(void);
-int allocator_verify_integrity(void);
-
-void free_list_reset(void);
-void free_list_insert(block_header_t *block);
-void free_list_remove(block_header_t *block);
-block_header_t *free_list_find_fit(size_t total_size);
-int free_list_verify_integrity(void);
+ALLOC_API void allocator_init(void);
+ALLOC_API void allocator_destroy(void);
+ALLOC_API allocator_stats_t allocator_get_stats(void);
+ALLOC_API int allocator_verify_integrity(void);
 
 #endif /* ALLOCATOR_H */

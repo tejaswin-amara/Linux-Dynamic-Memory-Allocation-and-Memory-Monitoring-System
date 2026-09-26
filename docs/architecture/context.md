@@ -57,7 +57,7 @@ C4Context
 ### 3.2 External Systems & Kernel Interfaces
 - **Linux Virtual File System (`/proc`)**:
   - Mounted pseudo-filesystem created dynamically by the Linux kernel.
-  - Serves as the authoritative source of real-time telemetry: system CPU jiffies (`/proc/stat`), global RAM counters (`/proc/meminfo`), and process tables (`/proc/[pid]/stat`, `/proc/[pid]/status`, `/proc/[pid]/smaps_rollup`, `/proc/[pid]/maps`).
+  - Serves as the authoritative source of real-time telemetry: system CPU jiffies (`/proc/stat`), global RAM counters (`/proc/meminfo`), and process tables (`/proc/[pid]/stat`, `/proc/[pid]/status`, and `/proc/[pid]/maps`).
 - **Linux Virtual Memory Subsystem**:
   - The kernel memory manager responding to program break manipulation (`sbrk`) for contiguous heap expansion.
   - Handles anonymous page allocation (`mmap` with `MAP_PRIVATE | MAP_ANONYMOUS`) and deallocation (`munmap`).
