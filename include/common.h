@@ -43,6 +43,13 @@
   do {                                                                         \
     fprintf(stderr, "[ERROR] [%s:%d] ", __FILE__, __LINE__);                   \
     fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n");                                                     \
+  } while (0)
+
+#define LOG_ERRNO_ERROR(...)                                                   \
+  do {                                                                         \
+    fprintf(stderr, "[ERROR] [%s:%d] ", __FILE__, __LINE__);                   \
+    fprintf(stderr, __VA_ARGS__);                                              \
     fprintf(stderr, " (errno: %s)\n", strerror(errno));                        \
   } while (0)
 

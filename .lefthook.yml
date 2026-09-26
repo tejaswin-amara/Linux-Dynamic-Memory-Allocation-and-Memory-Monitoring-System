@@ -1,4 +1,4 @@
-﻿# Lefthook Git Hooks configuration for Awesome Dev Pipeline (Systems/CLI Archetype)
+# Lefthook Git Hooks configuration for Awesome Dev Pipeline (Systems/CLI Archetype)
 # Refer: https://github.com/evilmartians/lefthook
 
 pre-commit:

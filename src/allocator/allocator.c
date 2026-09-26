@@ -1,17 +1,32 @@
-﻿#include "allocator.h"
+#include "allocator.h"
 #include <sys/mman.h>
+#include <unistd.h>
 
 static pthread_mutex_t alloc_mutex = PTHREAD_MUTEX_INITIALIZER;
-static allocator_stats_t global_stats = {0, 0, 0, 0, 0};
+static allocator_stats_t global_stats = {0};
 static void *heap_start = NULL;
+
+static void fatal_abort(const char *msg) {
+  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
+  (void)ret;
+  abort();
+}
 
 void allocator_init(void) {
   pthread_mutex_lock(&alloc_mutex);
   memset(&global_stats, 0, sizeof(global_stats));
+  free_list_reset();
+  heap_start = sbrk(0);
   pthread_mutex_unlock(&alloc_mutex);
 }
 
-void allocator_destroy(void) { /* Cleanup mutex or hooks if necessary */ }
+void allocator_destroy(void) {
+  pthread_mutex_lock(&alloc_mutex);
+  memset(&global_stats, 0, sizeof(global_stats));
+  free_list_reset();
+  heap_start = NULL;
+  pthread_mutex_unlock(&alloc_mutex);
+}
 
 allocator_stats_t allocator_get_stats(void) {
   pthread_mutex_lock(&alloc_mutex);
@@ -21,7 +36,35 @@ allocator_stats_t allocator_get_stats(void) {
 }
 
 int allocator_verify_integrity(void) {
-  /* Integrity verification is performed on individual blocks */
+  pthread_mutex_lock(&alloc_mutex);
+  int res = free_list_verify_integrity();
+  if (res != 0) {
+    pthread_mutex_unlock(&alloc_mutex);
+    return res;
+  }
+
+  void *heap_end = sbrk(0);
+  if (heap_start && heap_start != (void *)-1 && heap_end &&
+      heap_end != (void *)-1) {
+    char *curr = (char *)heap_start;
+    while (curr < (char *)heap_end) {
+      block_header_t *hdr = (block_header_t *)curr;
+      if (hdr->magic_header != ALLOC_MAGIC_HEADER) {
+        pthread_mutex_unlock(&alloc_mutex);
+        return -1;
+      }
+      block_footer_t *ftr =
+          (block_footer_t *)(curr + hdr->block_size - sizeof(block_footer_t));
+      if (ftr->magic_footer != ALLOC_MAGIC_FOOTER ||
+          ftr->block_size != hdr->block_size) {
+        pthread_mutex_unlock(&alloc_mutex);
+        return -1;
+      }
+      curr += hdr->block_size;
+    }
+  }
+
+  pthread_mutex_unlock(&alloc_mutex);
   return 0;
 }
 
@@ -29,22 +72,28 @@ void *my_malloc(size_t size) {
   if (size == 0)
     return NULL;
 
+  size_t max_allowed = SIZE_MAX - 1024;
+  if (size > max_allowed) {
+    LOG_ERROR("Requested allocation size %zu causes integer overflow", size);
+    return NULL;
+  }
+
+  size_t aligned_payload = ALIGN(size);
   size_t total_size =
-      ALIGN(sizeof(block_header_t) + size + sizeof(block_footer_t));
+      sizeof(block_header_t) + aligned_payload + sizeof(block_footer_t);
 
   pthread_mutex_lock(&alloc_mutex);
 
-  /* Large allocations >= 128 KB via direct mmap */
   if (total_size >= MMAP_THRESHOLD) {
-    void *mapped = mmap(NULL, total_size, PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (mapped == MAP_FAILED) {
-      LOG_ERROR("mmap syscall failed for size %zu", total_size);
+    block_header_t *header = mmap(NULL, total_size, PROT_READ | PROT_WRITE,
+                                  MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+
+    if (header == MAP_FAILED) {
+      LOG_ERRNO_ERROR("mmap syscall failed for size %zu", total_size);
       pthread_mutex_unlock(&alloc_mutex);
       return NULL;
     }
 
-    block_header_t *header = (block_header_t *)mapped;
     header->magic_header = ALLOC_MAGIC_HEADER;
     header->is_free = 0;
     header->requested_size = size;
@@ -53,7 +102,7 @@ void *my_malloc(size_t size) {
     header->next = NULL;
     header->prev = NULL;
 
-    block_footer_t *footer = (block_footer_t *)((char *)mapped + total_size -
+    block_footer_t *footer = (block_footer_t *)((char *)header + total_size -
                                                 sizeof(block_footer_t));
     footer->magic_footer = ALLOC_MAGIC_FOOTER;
     footer->block_size = total_size;
@@ -65,13 +114,12 @@ void *my_malloc(size_t size) {
     return (void *)((char *)header + sizeof(block_header_t));
   }
 
-  /* Small/Medium allocations < 128 KB via Segregated Free Lists & sbrk */
   block_header_t *block = free_list_find_fit(total_size);
 
   if (!block) {
     void *heap_break = sbrk((intptr_t)total_size);
     if (heap_break == (void *)-1) {
-      LOG_ERROR("sbrk syscall failed for size %zu", total_size);
+      LOG_ERRNO_ERROR("sbrk syscall failed for size %zu", total_size);
       pthread_mutex_unlock(&alloc_mutex);
       return NULL;
     }
@@ -88,8 +136,7 @@ void *my_malloc(size_t size) {
     global_stats.current_heap_size += total_size;
     global_stats.sbrk_allocations++;
   } else {
-    /* Split block if extra remainder is sufficiently large */
-    size_t min_split = sizeof(block_header_t) + sizeof(block_footer_t) + 32;
+    size_t min_split = sizeof(block_header_t) + sizeof(block_footer_t) + 16;
     if (block->block_size >= total_size + min_split) {
       size_t remainder_size = block->block_size - total_size;
       block->block_size = total_size;
@@ -136,16 +183,20 @@ void my_free(void *ptr) {
       (block_header_t *)((char *)ptr - sizeof(block_header_t));
 
   if (header->magic_header != ALLOC_MAGIC_HEADER) {
-    LOG_ERROR("Heap corruption: Invalid magic header canary at %p", ptr);
-    return;
+    fatal_abort(
+        "[FATAL] Heap corruption: Invalid magic header canary in my_free\n");
   }
 
   block_footer_t *footer =
       (block_footer_t *)((char *)header + header->block_size -
                          sizeof(block_footer_t));
   if (footer->magic_footer != ALLOC_MAGIC_FOOTER) {
-    LOG_ERROR("Heap corruption: Invalid magic footer canary at %p", ptr);
-    return;
+    fatal_abort(
+        "[FATAL] Heap corruption: Invalid magic footer canary in my_free\n");
+  }
+
+  if (header->is_free) {
+    fatal_abort("[FATAL] Double free or use after free detected in my_free\n");
   }
 
   pthread_mutex_lock(&alloc_mutex);
@@ -156,7 +207,7 @@ void my_free(void *ptr) {
     pthread_mutex_unlock(&alloc_mutex);
 
     if (munmap(header, block_size) != 0) {
-      LOG_ERROR("munmap syscall failed at %p", (void *)header);
+      LOG_ERRNO_ERROR("munmap syscall failed at %p", (void *)header);
     }
     return;
   }
@@ -164,7 +215,6 @@ void my_free(void *ptr) {
   header->is_free = 1;
   global_stats.total_freed += header->requested_size;
 
-  /* Coalesce Next */
   void *heap_end = sbrk(0);
   block_header_t *next_header =
       (block_header_t *)((char *)header + header->block_size);
@@ -179,7 +229,6 @@ void my_free(void *ptr) {
     new_footer->block_size = header->block_size;
   }
 
-  /* Coalesce Prev */
   if (heap_start && (void *)header > heap_start) {
     block_footer_t *prev_footer =
         (block_footer_t *)((char *)header - sizeof(block_footer_t));
@@ -230,20 +279,103 @@ void *my_realloc(void *ptr, size_t size) {
     return NULL;
   }
 
-  block_header_t *header =
-      (block_header_t *)((char *)ptr - sizeof(block_header_t));
-  if (header->magic_header != ALLOC_MAGIC_HEADER) {
-    LOG_ERROR("Heap corruption in realloc at %p", ptr);
+  size_t max_allowed = SIZE_MAX - 1024;
+  if (size > max_allowed) {
+    errno = ENOMEM;
     return NULL;
   }
 
-  /* If existing block capacity satisfies new size */
-  size_t usable_capacity =
-      header->block_size - sizeof(block_header_t) - sizeof(block_footer_t);
-  if (usable_capacity >= size) {
+  block_header_t *header =
+      (block_header_t *)((char *)ptr - sizeof(block_header_t));
+  if (header->magic_header != ALLOC_MAGIC_HEADER) {
+    fatal_abort(
+        "[FATAL] Heap corruption: Invalid magic header canary in my_realloc\n");
+  }
+
+  block_footer_t *footer =
+      (block_footer_t *)((char *)header + header->block_size -
+                         sizeof(block_footer_t));
+  if (footer->magic_footer != ALLOC_MAGIC_FOOTER) {
+    fatal_abort(
+        "[FATAL] Heap corruption: Invalid magic footer canary in my_realloc\n");
+  }
+
+  if (header->is_free) {
+    fatal_abort(
+        "[FATAL] Double free or use after free detected in my_realloc\n");
+  }
+
+  if (header->is_mmap) {
+    size_t aligned_payload = ALIGN(size);
+    size_t total_size =
+        sizeof(block_header_t) + aligned_payload + sizeof(block_footer_t);
+#if defined(__linux__) && defined(_GNU_SOURCE)
+    pthread_mutex_lock(&alloc_mutex);
+    block_header_t *new_header =
+        mremap(header, header->block_size, total_size, MREMAP_MAYMOVE);
+    if (new_header != MAP_FAILED) {
+      new_header->requested_size = size;
+      new_header->block_size = total_size;
+      block_footer_t *new_footer =
+          (block_footer_t *)((char *)new_header + total_size -
+                             sizeof(block_footer_t));
+      new_footer->magic_footer = ALLOC_MAGIC_FOOTER;
+      new_footer->block_size = total_size;
+      pthread_mutex_unlock(&alloc_mutex);
+      return (void *)((char *)new_header + sizeof(block_header_t));
+    }
+    pthread_mutex_unlock(&alloc_mutex);
+#endif
+    void *new_ptr = my_malloc(size);
+    if (!new_ptr)
+      return NULL;
+    size_t copy_size =
+        header->requested_size < size ? header->requested_size : size;
+    memcpy(new_ptr, ptr, copy_size);
+    my_free(ptr);
+    return new_ptr;
+  }
+
+  pthread_mutex_lock(&alloc_mutex);
+  size_t aligned_payload = ALIGN(size);
+  size_t total_needed =
+      sizeof(block_header_t) + aligned_payload + sizeof(block_footer_t);
+
+  if (header->block_size >= total_needed) {
+    size_t min_split = sizeof(block_header_t) + sizeof(block_footer_t) + 16;
+    if (header->block_size >= total_needed + min_split) {
+      size_t remainder_size = header->block_size - total_needed;
+      header->block_size = total_needed;
+
+      block_footer_t *hdr_footer =
+          (block_footer_t *)((char *)header + total_needed -
+                             sizeof(block_footer_t));
+      hdr_footer->magic_footer = ALLOC_MAGIC_FOOTER;
+      hdr_footer->block_size = total_needed;
+
+      block_header_t *remainder =
+          (block_header_t *)((char *)header + total_needed);
+      remainder->magic_header = ALLOC_MAGIC_HEADER;
+      remainder->block_size = remainder_size;
+      remainder->is_free = 1;
+      remainder->is_mmap = 0;
+      remainder->next = NULL;
+      remainder->prev = NULL;
+
+      block_footer_t *rem_footer =
+          (block_footer_t *)((char *)remainder + remainder_size -
+                             sizeof(block_footer_t));
+      rem_footer->magic_footer = ALLOC_MAGIC_FOOTER;
+      rem_footer->block_size = remainder_size;
+
+      free_list_insert(remainder);
+    }
     header->requested_size = size;
+    pthread_mutex_unlock(&alloc_mutex);
     return ptr;
   }
+
+  pthread_mutex_unlock(&alloc_mutex);
 
   void *new_ptr = my_malloc(size);
   if (!new_ptr)

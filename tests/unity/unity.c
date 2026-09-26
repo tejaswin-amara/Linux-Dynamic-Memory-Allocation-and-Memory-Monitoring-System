@@ -1,4 +1,4 @@
-﻿#include "unity.h"
+#include "unity.h"
 #include <string.h>
 
 jmp_buf UnityTestJump;
@@ -18,8 +18,8 @@ void UnityBegin(const char *filename) {
 
 int UnityEnd(void) {
   printf("\n------------------------------------------------------------\n");
-  printf("Tests Run: %d | Passed: %d | Failed: %d\n", UnityTestsRun,
-         UnityTestsRun - UnityTestsFailed, UnityTestsFailed);
+  printf("Tests Run: %d | Passed: %d | Failed: %d | Ignored: %d\n", UnityTestsRun,
+         UnityTestsRun - UnityTestsFailed - UnityTestsIgnored, UnityTestsFailed, UnityTestsIgnored);
   printf("============================================================\n");
   return UnityTestsFailed;
 }
@@ -27,4 +27,9 @@ int UnityEnd(void) {
 void UnityTestFail(const char *message, const unsigned int line) {
   UnityTestsFailed++;
   printf("  [FAIL] %s:%u: %s\n", current_test_file, line, message);
+}
+
+void UnityTestIgnore(const char *message, const unsigned int line) {
+  UnityTestsIgnored++;
+  printf("  [IGNORE] %s:%u: %s\n", current_test_file, line, message);
 }

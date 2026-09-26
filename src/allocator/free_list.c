@@ -1,30 +1,24 @@
-﻿#include "allocator.h"
+#include "allocator.h"
+#include <unistd.h>
 
-/*
- * Size classes for segregated free lists:
- * Class 0: <= 32 B
- * Class 1: <= 64 B
- * Class 2: <= 128 B
- * Class 3: <= 256 B
- * Class 4: <= 512 B
- * Class 5: <= 1024 B (1 KB)
- * Class 6: <= 2048 B (2 KB)
- * Class 7: <= 4096 B (4 KB)
- * Class 8: <= 8192 B (8 KB)
- * Class 9: > 8192 B (up to MMAP_THRESHOLD)
- */
 static const size_t size_class_limits[NUM_SIZE_CLASSES] = {
-    32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, MMAP_THRESHOLD};
+    128, 256, 512, 1024, 2048, 4096, 8192, MMAP_THRESHOLD};
 
 static block_header_t *segregated_heads[NUM_SIZE_CLASSES] = {NULL};
 
-int get_size_class_index(size_t size) {
+static int get_size_class_index(size_t block_size) {
   for (int i = 0; i < NUM_SIZE_CLASSES - 1; ++i) {
-    if (size <= size_class_limits[i]) {
+    if (block_size <= size_class_limits[i]) {
       return i;
     }
   }
   return NUM_SIZE_CLASSES - 1;
+}
+
+void free_list_reset(void) {
+  for (int i = 0; i < NUM_SIZE_CLASSES; ++i) {
+    segregated_heads[i] = NULL;
+  }
 }
 
 void free_list_insert(block_header_t *block) {
@@ -61,6 +55,12 @@ void free_list_remove(block_header_t *block) {
   block->is_free = 0;
 }
 
+static void fatal_abort(const char *msg) {
+  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
+  (void)ret;
+  abort();
+}
+
 block_header_t *free_list_find_fit(size_t total_size) {
   int start_idx = get_size_class_index(total_size);
 
@@ -71,9 +71,8 @@ block_header_t *free_list_find_fit(size_t total_size) {
 
     while (curr) {
       if (curr->magic_header != ALLOC_MAGIC_HEADER) {
-        LOG_ERROR("Heap canary corruption detected in free list at %p",
-                  (void *)curr);
-        return NULL;
+        fatal_abort(
+            "[FATAL] Heap canary corruption detected in free_list_find_fit\n");
       }
       if (curr->block_size >= total_size) {
         size_t diff = curr->block_size - total_size;
@@ -93,4 +92,27 @@ block_header_t *free_list_find_fit(size_t total_size) {
     }
   }
   return NULL;
+}
+
+int free_list_verify_integrity(void) {
+  for (int i = 0; i < NUM_SIZE_CLASSES; ++i) {
+    block_header_t *curr = segregated_heads[i];
+    while (curr) {
+      if (curr->magic_header != ALLOC_MAGIC_HEADER) {
+        return -1;
+      }
+      if (!curr->is_free) {
+        return -1;
+      }
+      block_footer_t *footer =
+          (block_footer_t *)((char *)curr + curr->block_size -
+                             sizeof(block_footer_t));
+      if (footer->magic_footer != ALLOC_MAGIC_FOOTER ||
+          footer->block_size != curr->block_size) {
+        return -1;
+      }
+      curr = curr->next;
+    }
+  }
+  return 0;
 }

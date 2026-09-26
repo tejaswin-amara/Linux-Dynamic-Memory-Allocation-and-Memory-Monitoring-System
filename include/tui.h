@@ -1,4 +1,4 @@
-﻿#ifndef TUI_H
+#ifndef TUI_H
 #define TUI_H
 
 #include "common.h"
@@ -18,6 +18,8 @@ typedef struct {
   sort_mode_t sort_mode;
   char status_message[256];
   time_t status_message_expiry;
+  bool confirm_pending;
+  pid_t pending_kill_pid;
 } tui_state_t;
 
 int tui_init(void);
