@@ -51,6 +51,41 @@ static void send_response(int client_fd, const char *status,
   }
 }
 
+static void escape_json_string(const char *in, char *out, size_t max_out) {
+  size_t idx = 0;
+  while (*in && idx + 6 < max_out) {
+    unsigned char c = (unsigned char)*in;
+    if (c == '"') {
+      out[idx++] = '\\';
+      out[idx++] = '"';
+    } else if (c == '\\') {
+      out[idx++] = '\\';
+      out[idx++] = '\\';
+    } else if (c == '\b') {
+      out[idx++] = '\\';
+      out[idx++] = 'b';
+    } else if (c == '\f') {
+      out[idx++] = '\\';
+      out[idx++] = 'f';
+    } else if (c == '\n') {
+      out[idx++] = '\\';
+      out[idx++] = 'n';
+    } else if (c == '\r') {
+      out[idx++] = '\\';
+      out[idx++] = 'r';
+    } else if (c == '\t') {
+      out[idx++] = '\\';
+      out[idx++] = 't';
+    } else if (c < 32) {
+      idx += snprintf(out + idx, max_out - idx, "\\u00%02x", c);
+    } else {
+      out[idx++] = (char)c;
+    }
+    in++;
+  }
+  out[idx] = '\0';
+}
+
 static void serve_file(int client_fd, const char *filepath,
                        const char *content_type) {
   int fd = open(filepath, O_RDONLY);
@@ -137,11 +172,14 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
     }
 
     const process_info_t *p = &snap->procs[i];
+    char escaped_comm[MAX_COMM_LEN * 4];
+    escape_json_string(p->comm, escaped_comm, sizeof(escaped_comm));
+
     w = snprintf(
         json + offset, cap - offset,
         "    {\"pid\": %d, \"comm\": \"%s\", \"state\": \"%c\", "
         "\"cpu_pct\": %.2f, \"mem_rss_kb\": %lu, \"threads\": %ld}%s\n",
-        p->pid, p->comm, p->state, p->cpu_usage_pct, p->vm_rss_kb,
+        p->pid, escaped_comm, p->state, p->cpu_usage_pct, p->vm_rss_kb,
         p->num_threads, (i == count - 1) ? "" : ",");
     if (w > 0) {
       if (offset + (size_t)w < cap) {
@@ -166,23 +204,50 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
   free(json);
 }
 
+static bool constant_time_streq(const char *a, const char *b, size_t len) {
+  volatile unsigned char result = 0;
+  for (size_t i = 0; i < len; i++) {
+    result |= (unsigned char)a[i] ^ (unsigned char)b[i];
+  }
+  return result == 0;
+}
+
 static bool check_auth(gui_server_t *server, const char *buffer) {
-  if (strlen(server->auth_token) == 0) {
+  size_t token_len = strlen(server->auth_token);
+  if (token_len == 0) {
     return true;
   }
 
-  char expected_header[256];
-  snprintf(expected_header, sizeof(expected_header), "X-Auth-Token: %s",
-           server->auth_token);
-  if (strstr(buffer, expected_header) != NULL) {
-    return true;
-  }
+  const char *header_end = strstr(buffer, "\r\n\r\n");
+  size_t header_len =
+      header_end ? (size_t)(header_end - buffer) : strlen(buffer);
 
-  char expected_bearer[256];
-  snprintf(expected_bearer, sizeof(expected_bearer), "Authorization: Bearer %s",
-           server->auth_token);
-  if (strstr(buffer, expected_bearer) != NULL) {
-    return true;
+  const char *pos = buffer;
+  while (pos && pos < buffer + header_len) {
+    const char *line_end = strstr(pos, "\r\n");
+    size_t line_len = line_end ? (size_t)(line_end - pos)
+                               : (size_t)(buffer + header_len - pos);
+
+    if (line_len > 14 && strncasecmp(pos, "X-Auth-Token: ", 14) == 0) {
+      const char *val = pos + 14;
+      size_t val_len = line_len - 14;
+      if (val_len == token_len &&
+          constant_time_streq(val, server->auth_token, token_len)) {
+        return true;
+      }
+    } else if (line_len > 22 &&
+               strncasecmp(pos, "Authorization: Bearer ", 22) == 0) {
+      const char *val = pos + 22;
+      size_t val_len = line_len - 22;
+      if (val_len == token_len &&
+          constant_time_streq(val, server->auth_token, token_len)) {
+        return true;
+      }
+    }
+
+    if (!line_end || line_end >= buffer + header_len)
+      break;
+    pos = line_end + 2;
   }
 
   return false;
@@ -246,10 +311,24 @@ static void handle_process_signal(gui_server_t *server, int client_fd,
     return;
   }
 
-  pid_t target_pid = (pid_t)atoi(pid_str);
-  int sig = signal_parse_name(sig_str[0] ? sig_str : "SIGTERM");
+  char *endptr;
+  errno = 0;
+  long parsed_pid = strtol(pid_str, &endptr, 10);
+  if (errno != 0 || *endptr != '\0' || parsed_pid <= 1 ||
+      parsed_pid > 4194304) {
+    send_response(client_fd, "400 Bad Request", "application/json",
+                  "{\"error\": \"Invalid target PID\"}", NULL);
+    return;
+  }
 
-  if (signal_send_to_process(target_pid, sig) == 0) {
+  int sig = signal_parse_name(sig_str[0] ? sig_str : "SIGTERM");
+  if (sig < 0) {
+    send_response(client_fd, "400 Bad Request", "application/json",
+                  "{\"error\": \"Invalid signal name\"}", NULL);
+    return;
+  }
+
+  if (signal_send_to_process((pid_t)parsed_pid, sig) == 0) {
     send_response(client_fd, "200 OK", "application/json",
                   "{\"status\": \"success\"}", NULL);
   } else {
@@ -296,6 +375,12 @@ static void *client_thread_worker(void *arg) {
   }
 
   close(client_fd);
+
+  pthread_mutex_lock(&server->worker_mutex);
+  server->active_workers--;
+  pthread_cond_broadcast(&server->worker_cond);
+  pthread_mutex_unlock(&server->worker_mutex);
+
   return NULL;
 }
 
@@ -318,6 +403,17 @@ static void *gui_server_worker(void *arg) {
       continue;
     }
 
+    pthread_mutex_lock(&server->worker_mutex);
+    if (server->active_workers >= MAX_CLIENT_WORKERS) {
+      pthread_mutex_unlock(&server->worker_mutex);
+      send_response(client_fd, "539 Service Unavailable", "application/json",
+                    "{\"error\": \"Too many concurrent connections\"}", NULL);
+      close(client_fd);
+      continue;
+    }
+    server->active_workers++;
+    pthread_mutex_unlock(&server->worker_mutex);
+
     struct timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
@@ -327,6 +423,10 @@ static void *gui_server_worker(void *arg) {
     client_conn_t *conn = malloc(sizeof(client_conn_t));
     if (!conn) {
       close(client_fd);
+      pthread_mutex_lock(&server->worker_mutex);
+      server->active_workers--;
+      pthread_cond_broadcast(&server->worker_cond);
+      pthread_mutex_unlock(&server->worker_mutex);
       continue;
     }
     conn->server = server;
@@ -340,6 +440,10 @@ static void *gui_server_worker(void *arg) {
     if (pthread_create(&thread, &attr, client_thread_worker, conn) != 0) {
       close(client_fd);
       free(conn);
+      pthread_mutex_lock(&server->worker_mutex);
+      server->active_workers--;
+      pthread_cond_broadcast(&server->worker_cond);
+      pthread_mutex_unlock(&server->worker_mutex);
     }
     pthread_attr_destroy(&attr);
   }
@@ -356,10 +460,15 @@ int gui_server_init(gui_server_t *server, const char *host, int port,
   strncpy(server->bind_host, (host && strlen(host) > 0) ? host : "127.0.0.1",
           sizeof(server->bind_host) - 1);
   server->port = port;
-  strncpy(server->auth_token, auth_token ? auth_token : DEFAULT_AUTH_TOKEN,
-          sizeof(server->auth_token) - 1);
+  if (auth_token) {
+    strncpy(server->auth_token, auth_token, sizeof(server->auth_token) - 1);
+  }
   server->server_fd = -1;
   server->is_running = false;
+  server->active_workers = 0;
+
+  pthread_mutex_init(&server->worker_mutex, NULL);
+  pthread_cond_init(&server->worker_cond, NULL);
 
   server->latest_snapshot = malloc(sizeof(system_snapshot_t));
   if (!server->latest_snapshot) {
@@ -449,6 +558,16 @@ void gui_server_stop(gui_server_t *server) {
   }
 
   pthread_join(server->thread, NULL);
+
+  pthread_mutex_lock(&server->worker_mutex);
+  while (server->active_workers > 0) {
+    pthread_cond_wait(&server->worker_cond, &server->worker_mutex);
+  }
+  pthread_mutex_unlock(&server->worker_mutex);
+
+  pthread_mutex_destroy(&server->worker_mutex);
+  pthread_cond_destroy(&server->worker_cond);
+
   pthread_rwlock_destroy(&server->snapshot_lock);
   if (server->latest_snapshot) {
     free(server->latest_snapshot);

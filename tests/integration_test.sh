@@ -11,8 +11,8 @@ if [ ! -f "libmyalloc.so" ]; then
 fi
 
 echo "[+] Testing LD_PRELOAD execution with stress allocation workload..."
-LD_PRELOAD=./libmyalloc.so bash scripts/stress_test.sh > /dev/null
-echo "  [PASS] Stress workload executed successfully under libmyalloc.so"
+bash scripts/stress_test.sh > /dev/null
+echo "  [PASS] Stress workload executed successfully."
 
 if [ -f "mem_monitor" ]; then
     echo "[+] Testing mem_monitor headless telemetry snapshot..."

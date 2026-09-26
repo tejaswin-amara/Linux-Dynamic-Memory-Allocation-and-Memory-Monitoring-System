@@ -32,10 +32,11 @@ int signal_parse_name(const char *name) {
     return 0;
 
   char *endptr;
+  errno = 0;
   long val = strtol(name, &endptr, 10);
-  if (*endptr == '\0' && val >= 0 && val <= 31) {
+  if (errno == 0 && *endptr == '\0' && val >= 0 && val <= 31) {
     return (int)val;
   }
 
-  return SIGTERM;
+  return -1;
 }

@@ -19,6 +19,7 @@ typedef struct {
   char status_message[256];
   time_t status_message_expiry;
   bool confirm_pending;
+  pid_t pending_kill_pid;
 } tui_state_t;
 
 int tui_init(void);

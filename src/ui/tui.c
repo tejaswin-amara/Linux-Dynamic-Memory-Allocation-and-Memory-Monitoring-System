@@ -96,6 +96,19 @@ void tui_render(system_snapshot_t *snapshot, tui_state_t *state) {
   qsort_r(snapshot->procs, snapshot->count, sizeof(process_info_t),
           compare_procs, &state->sort_mode);
 
+  /* Clamp selection and scroll_offset to snapshot bounds */
+  if (snapshot->count <= 0) {
+    state->selected_index = 0;
+    state->scroll_offset = 0;
+  } else {
+    if (state->selected_index >= snapshot->count) {
+      state->selected_index = snapshot->count - 1;
+    }
+    if (state->selected_index < 0) {
+      state->selected_index = 0;
+    }
+  }
+
   int table_start = 5;
   int max_rows = rows - table_start - 3;
   if (max_rows < 1)
@@ -105,6 +118,10 @@ void tui_render(system_snapshot_t *snapshot, tui_state_t *state) {
     state->scroll_offset = state->selected_index;
   } else if (state->selected_index >= state->scroll_offset + max_rows) {
     state->scroll_offset = state->selected_index - max_rows + 1;
+  }
+
+  if (state->scroll_offset < 0) {
+    state->scroll_offset = 0;
   }
 
   /* 2. Process Table Header */
@@ -155,23 +172,45 @@ bool tui_handle_input(system_snapshot_t *snapshot, tui_state_t *state) {
     return true;
 
   if (state->confirm_pending) {
-    if (ch == 'y' || ch == 'Y') {
-      pid_t pid = snapshot->procs[state->selected_index].pid;
-      if (signal_send_to_process(pid, SIGKILL) == 0) {
-        snprintf(state->status_message, sizeof(state->status_message),
-                 "Successfully sent SIGKILL to PID %d", pid);
-      } else {
-        snprintf(state->status_message, sizeof(state->status_message),
-                 "Failed to send SIGKILL to PID %d", pid);
-      }
+    if (time(NULL) >= state->status_message_expiry) {
+      state->confirm_pending = false;
+      state->pending_kill_pid = -1;
+      snprintf(state->status_message, sizeof(state->status_message),
+               "SIGKILL confirmation expired");
       state->status_message_expiry = time(NULL) + 3;
     } else {
-      snprintf(state->status_message, sizeof(state->status_message),
-               "SIGKILL cancelled");
-      state->status_message_expiry = time(NULL) + 3;
+      if (ch == 'y' || ch == 'Y') {
+        pid_t target_pid = state->pending_kill_pid;
+        bool found = false;
+        for (int i = 0; i < snapshot->count; ++i) {
+          if (snapshot->procs[i].pid == target_pid) {
+            found = true;
+            break;
+          }
+        }
+
+        if (found) {
+          if (signal_send_to_process(target_pid, SIGKILL) == 0) {
+            snprintf(state->status_message, sizeof(state->status_message),
+                     "Successfully sent SIGKILL to PID %d", target_pid);
+          } else {
+            snprintf(state->status_message, sizeof(state->status_message),
+                     "Failed to send SIGKILL to PID %d", target_pid);
+          }
+        } else {
+          snprintf(state->status_message, sizeof(state->status_message),
+                   "PID %d no longer present in snapshot", target_pid);
+        }
+        state->status_message_expiry = time(NULL) + 3;
+      } else {
+        snprintf(state->status_message, sizeof(state->status_message),
+                 "SIGKILL cancelled");
+        state->status_message_expiry = time(NULL) + 3;
+      }
+      state->confirm_pending = false;
+      state->pending_kill_pid = -1;
+      return true;
     }
-    state->confirm_pending = false;
-    return true;
   }
 
   switch (ch) {
@@ -207,7 +246,7 @@ bool tui_handle_input(system_snapshot_t *snapshot, tui_state_t *state) {
     break;
   case 's':
   case 'S':
-    if (state->selected_index < snapshot->count) {
+    if (snapshot->count > 0 && state->selected_index < snapshot->count) {
       pid_t pid = snapshot->procs[state->selected_index].pid;
       if (signal_send_to_process(pid, SIGSTOP) == 0) {
         snprintf(state->status_message, sizeof(state->status_message),
@@ -221,7 +260,7 @@ bool tui_handle_input(system_snapshot_t *snapshot, tui_state_t *state) {
     break;
   case 'c':
   case 'C':
-    if (state->selected_index < snapshot->count) {
+    if (snapshot->count > 0 && state->selected_index < snapshot->count) {
       pid_t pid = snapshot->procs[state->selected_index].pid;
       if (signal_send_to_process(pid, SIGCONT) == 0) {
         snprintf(state->status_message, sizeof(state->status_message),
@@ -234,8 +273,9 @@ bool tui_handle_input(system_snapshot_t *snapshot, tui_state_t *state) {
     }
     break;
   case 'K':
-    if (state->selected_index < snapshot->count) {
+    if (snapshot->count > 0 && state->selected_index < snapshot->count) {
       pid_t pid = snapshot->procs[state->selected_index].pid;
+      state->pending_kill_pid = pid;
       snprintf(state->status_message, sizeof(state->status_message),
                "Confirm SIGKILL for PID %d? (y/n)", pid);
       state->status_message_expiry = time(NULL) + 10;

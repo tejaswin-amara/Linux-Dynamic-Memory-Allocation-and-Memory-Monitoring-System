@@ -4,8 +4,8 @@
 #include "common.h"
 #include "proc_parser.h"
 
-#define DEFAULT_AUTH_TOKEN "secret-token"
 #define MAX_AUTH_TOKEN_LEN 128
+#define MAX_CLIENT_WORKERS 32
 
 typedef struct {
   char bind_host[64];
@@ -16,6 +16,9 @@ typedef struct {
   pthread_t thread;
   pthread_rwlock_t snapshot_lock;
   system_snapshot_t *latest_snapshot;
+  _Atomic int active_workers;
+  pthread_mutex_t worker_mutex;
+  pthread_cond_t worker_cond;
 } gui_server_t;
 
 int gui_server_init(gui_server_t *server, const char *host, int port,

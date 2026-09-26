@@ -280,6 +280,13 @@ void *my_realloc(void *ptr, size_t size) {
     return NULL;
   }
 
+  size_t max_allowed = SIZE_MAX - sizeof(block_header_t) -
+                       sizeof(block_footer_t) - (ALIGNMENT - 1);
+  if (size > max_allowed) {
+    errno = ENOMEM;
+    return NULL;
+  }
+
   block_header_t *header =
       (block_header_t *)((char *)ptr - sizeof(block_header_t));
   if (header->magic_header != ALLOC_MAGIC_HEADER) {

@@ -11,10 +11,31 @@ static void sigint_handler(int sig) {
   g_running = 0;
 }
 
+static void generate_random_token(char *out, size_t len) {
+  static const char hex_chars[] = "0123456789abcdef";
+  int fd = open("/dev/urandom", O_RDONLY);
+  if (fd >= 0) {
+    unsigned char bytes[32];
+    ssize_t n = read(fd, bytes, sizeof(bytes));
+    close(fd);
+    if (n == sizeof(bytes)) {
+      size_t pos = 0;
+      for (size_t i = 0; i < sizeof(bytes) && pos + 2 < len; i++) {
+        out[pos++] = hex_chars[(bytes[i] >> 4) & 0x0F];
+        out[pos++] = hex_chars[bytes[i] & 0x0F];
+      }
+      out[pos] = '\0';
+      return;
+    }
+  }
+  snprintf(out, len, "token-%ld", (long)time(NULL));
+}
+
 int main(int argc, char **argv) {
   int port = 8080;
   char bind_host[64] = "127.0.0.1";
-  char auth_token[MAX_AUTH_TOKEN_LEN] = DEFAULT_AUTH_TOKEN;
+  char auth_token[MAX_AUTH_TOKEN_LEN] = {0};
+  bool token_provided = false;
   bool headless = false;
   bool output_json = false;
 
@@ -41,7 +62,12 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "--token") == 0 && i + 1 < argc) {
       strncpy(auth_token, argv[++i], sizeof(auth_token) - 1);
       auth_token[sizeof(auth_token) - 1] = '\0';
+      token_provided = true;
     }
+  }
+
+  if (!token_provided || strlen(auth_token) == 0) {
+    generate_random_token(auth_token, sizeof(auth_token));
   }
 
   struct sigaction sa;
@@ -92,9 +118,9 @@ int main(int argc, char **argv) {
   }
 
   if (headless) {
-    LOG_INFO("Running in headless mode at http://%s:%d/ (token: %s). Press "
+    LOG_INFO("Running in headless mode at http://%s:%d/ (auth: enabled). Press "
              "Ctrl+C to terminate.",
-             bind_host, port, strlen(auth_token) > 0 ? auth_token : "<none>");
+             bind_host, port);
     while (g_running) {
       proc_parser_take_snapshot(snapshot);
       gui_server_update_snapshot(&server, snapshot);
@@ -108,7 +134,8 @@ int main(int argc, char **argv) {
                          .sort_mode = SORT_BY_CPU,
                          .status_message = {0},
                          .status_message_expiry = 0,
-                         .confirm_pending = false};
+                         .confirm_pending = false,
+                         .pending_kill_pid = -1};
 
     while (g_running && state.is_running) {
       proc_parser_take_snapshot(snapshot);
