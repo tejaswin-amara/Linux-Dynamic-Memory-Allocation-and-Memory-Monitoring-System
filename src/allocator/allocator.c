@@ -72,8 +72,7 @@ void *my_malloc(size_t size) {
   if (size == 0)
     return NULL;
 
-  size_t max_allowed = SIZE_MAX - sizeof(block_header_t) -
-                       sizeof(block_footer_t) - (ALIGNMENT - 1);
+  size_t max_allowed = SIZE_MAX - 1024;
   if (size > max_allowed) {
     LOG_ERROR("Requested allocation size %zu causes integer overflow", size);
     return NULL;
@@ -280,8 +279,7 @@ void *my_realloc(void *ptr, size_t size) {
     return NULL;
   }
 
-  size_t max_allowed = SIZE_MAX - sizeof(block_header_t) -
-                       sizeof(block_footer_t) - (ALIGNMENT - 1);
+  size_t max_allowed = SIZE_MAX - 1024;
   if (size > max_allowed) {
     errno = ENOMEM;
     return NULL;

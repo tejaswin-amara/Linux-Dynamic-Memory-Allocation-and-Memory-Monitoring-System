@@ -16,7 +16,7 @@ static void *(*real_calloc)(size_t, size_t) = NULL;
 static void *(*real_realloc)(void *, size_t) = NULL;
 
 static _Thread_local bool is_initializing = false;
-static _Thread_local char bootstrap_buf[8192];
+static _Thread_local char bootstrap_buf[8192] __attribute__((aligned(16)));
 static _Thread_local size_t buf_offset = 0;
 
 static void init_real_functions(void) {
