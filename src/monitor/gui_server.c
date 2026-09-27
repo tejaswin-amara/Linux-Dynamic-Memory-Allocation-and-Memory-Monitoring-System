@@ -405,7 +405,7 @@ static void *gui_server_worker(void *arg) {
     pthread_mutex_lock(&server->worker_mutex);
     if (server->active_workers >= MAX_CLIENT_WORKERS) {
       pthread_mutex_unlock(&server->worker_mutex);
-      send_response(client_fd, "539 Service Unavailable", "application/json",
+      send_response(client_fd, "503 Service Unavailable", "application/json",
                     "{\"error\": \"Too many concurrent connections\"}", NULL);
       close(client_fd);
       continue;

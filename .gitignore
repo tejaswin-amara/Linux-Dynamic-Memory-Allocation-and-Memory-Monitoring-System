@@ -11,6 +11,9 @@ bin/
 mem_monitor
 test_allocator
 test_proc_parser
+test_signal_handler
+test_gui_server
+*.d
 
 # Debug and Profiling
 *.dSYM/

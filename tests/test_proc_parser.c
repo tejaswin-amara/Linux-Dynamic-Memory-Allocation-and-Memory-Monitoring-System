@@ -22,8 +22,8 @@ void test_proc_parser_mem(void) {
   TEST_ASSERT_TRUE(mem.mem_total_kb > 0);
   TEST_ASSERT_TRUE(mem.mem_available_kb > 0);
   TEST_ASSERT_TRUE(mem.mem_usage_pct >= 0.0f && mem.mem_usage_pct <= 100.0f);
-  TEST_ASSERT_TRUE(mem.buffers_kb > 0 || mem.buffers_kb == 0);
-  TEST_ASSERT_TRUE(mem.cached_kb > 0 || mem.cached_kb == 0);
+  TEST_ASSERT_TRUE(mem.buffers_kb < mem.mem_total_kb);
+  TEST_ASSERT_TRUE(mem.cached_kb < mem.mem_total_kb);
 }
 
 void test_proc_parser_snapshot(void) {

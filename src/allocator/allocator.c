@@ -90,8 +90,8 @@ ALLOC_API void *my_malloc(size_t size) {
                                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
     if (header == MAP_FAILED) {
-      LOG_ERRNO_ERROR("mmap syscall failed for size %zu", total_size);
       pthread_mutex_unlock(&alloc_mutex);
+      LOG_ERRNO_ERROR("mmap syscall failed for size %zu", total_size);
       return NULL;
     }
 
@@ -120,8 +120,8 @@ ALLOC_API void *my_malloc(size_t size) {
   if (!block) {
     void *heap_break = sbrk((intptr_t)total_size);
     if (heap_break == (void *)-1) {
-      LOG_ERRNO_ERROR("sbrk syscall failed for size %zu", total_size);
       pthread_mutex_unlock(&alloc_mutex);
+      LOG_ERRNO_ERROR("sbrk syscall failed for size %zu", total_size);
       return NULL;
     }
     if (!heap_start) {

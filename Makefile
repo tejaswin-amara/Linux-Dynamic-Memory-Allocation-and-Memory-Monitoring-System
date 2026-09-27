@@ -91,6 +91,8 @@ test: $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	./$(TEST_SIGNAL)
 	@echo "==> Running GUI Server Unit Tests..."
 	./$(TEST_GUI)
+	@echo "==> Running XSS Security Tests..."
+	node tests/test_xss.js
 	@echo "==> Running Integration Tests..."
 	@bash tests/integration_test.sh
 
