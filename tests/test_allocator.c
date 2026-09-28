@@ -1,4 +1,5 @@
 #include "allocator.h"
+#include "free_list_internal.h"
 #include "unity.h"
 #include <sys/wait.h>
 #include <unistd.h>
@@ -170,6 +171,24 @@ void test_integrity_rejects_invalid_block_size(void) {
   my_free(ptr);
 }
 
+void test_free_list_link_corruption_abort(void) {
+  pid_t pid = fork();
+  if (pid == 0) {
+    void *ptr = my_malloc(64);
+    my_free(ptr);
+
+    block_header_t *block =
+        (block_header_t *)((char *)ptr - sizeof(block_header_t));
+    block->next = (block_header_t *)(uintptr_t)0x1;
+    free_list_remove(block);
+    exit(0);
+  }
+  int status = 0;
+  waitpid(pid, &status, 0);
+  TEST_ASSERT_TRUE(WIFSIGNALED(status));
+  TEST_ASSERT_EQUAL_INT(SIGABRT, WTERMSIG(status));
+}
+
 void test_coalescing(void) {
   allocator_stats_t before = allocator_get_stats();
 
@@ -208,6 +227,7 @@ int main(void) {
   RUN_TEST(test_allocator_multithreaded_stress);
   RUN_TEST(test_allocator_destroy_reset);
   RUN_TEST(test_integrity_rejects_invalid_block_size);
+  RUN_TEST(test_free_list_link_corruption_abort);
   RUN_TEST(test_coalescing);
   return UnityEnd();
 }
