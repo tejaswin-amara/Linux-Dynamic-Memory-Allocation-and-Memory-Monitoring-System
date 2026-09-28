@@ -80,7 +80,7 @@ if [ -f "mem_monitor" ]; then
         false
     fi
 
-    AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:9088/api/process/signal -H "X-Auth-Token: my-test-token" -H "Content-Type: application/json" -d "{\"pid\": $$, \"signal\": \"0\"}")
+    AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${PORT}/api/process/signal -H "X-Auth-Token: my-test-token" -H "Content-Type: application/json" -d "{\"pid\": $$, \"signal\": \"0\"}")
     if [ "$AUTH_STATUS" -eq 200 ]; then
         echo "  [PASS] Authenticated signal POST accepted with 200."
     else
