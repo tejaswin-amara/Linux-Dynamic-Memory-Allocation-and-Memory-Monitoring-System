@@ -320,7 +320,7 @@ Supported signal names include `SIGKILL`, `SIGTERM`, `SIGSTOP`, `SIGCONT`, `SIGI
 
 > **Security:** the default bind address is loopback. Do not expose the HTTP server beyond a trusted network boundary without adding the appropriate host firewalling, access control, and deployment hardening.
 
-> **Current UI behavior:** the bundled dashboard polls `/api/metrics` and exposes signal controls, but the current browser client does not attach the API token header itself. Authenticated signal operations should therefore be driven by an API-aware client (for example, `curl`) until the browser authentication flow is extended.
+> **Dashboard auth:** enter the server token in the dashboard's API-token field. The browser keeps it in `sessionStorage` for the current browser session and sends it as `X-Auth-Token` for signal requests; `/api/metrics` remains readable without the token.
 
 ---
 
