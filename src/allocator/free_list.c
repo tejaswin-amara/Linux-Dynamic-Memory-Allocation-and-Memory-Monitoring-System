@@ -1,3 +1,8 @@
+static void fatal_abort(const char *msg) {
+  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
+  (void)ret;
+  abort();
+}
 #include "allocator.h"
 #include "free_list_internal.h"
 #include <unistd.h>
@@ -39,7 +44,32 @@ void free_list_insert(block_header_t *block) {
 void free_list_remove(block_header_t *block) {
   if (!block)
     return;
+  if (block->block_size < sizeof(block_header_t) + sizeof(block_footer_t)) {
+    fatal_abort(
+        "[FATAL] Invalid block size while unlinking free-list block\n");
+  }
+  if (!block->is_free) {
+    fatal_abort("[FATAL] Attempt to unlink an allocated block\n");
+  }
+
   int idx = get_size_class_index(block->block_size);
+  if (!block->prev && segregated_heads[idx] != block) {
+    fatal_abort("[FATAL] Free-list head linkage corruption detected\n");
+  }
+  if (block->prev && block->prev->next != block) {
+    fatal_abort("[FATAL] Free-list previous linkage corruption detected\n");
+  }
+  if (block->next && block->next->prev != block) {
+    fatal_abort("[FATAL] Free-list next linkage corruption detected\n");
+  }
+
+  block_footer_t *footer =
+      (block_footer_t *)((char *)block + block->block_size -
+                         sizeof(block_footer_t));
+  if (footer->magic_footer != ALLOC_MAGIC_FOOTER ||
+      footer->block_size != block->block_size) {
+    fatal_abort("[FATAL] Free-list footer corruption detected\n");
+  }
 
   if (block->prev) {
     block->prev->next = block->next;
@@ -54,12 +84,6 @@ void free_list_remove(block_header_t *block) {
   block->next = NULL;
   block->prev = NULL;
   block->is_free = 0;
-}
-
-static void fatal_abort(const char *msg) {
-  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
-  (void)ret;
-  abort();
 }
 
 block_header_t *free_list_find_fit(size_t total_size) {
