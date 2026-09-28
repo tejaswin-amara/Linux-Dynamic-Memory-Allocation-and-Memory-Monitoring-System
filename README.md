@@ -37,7 +37,7 @@
 
 Built for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**, this repository brings two OS-level engineering problems together in one C11/POSIX codebase:
 
-1. **Custom Dynamic Memory Allocator (`libmyalloc.so`)**: A drop-in POSIX `malloc`/`free`/`calloc`/`realloc` replacement library. Employs 8-bin segregated free lists, best-fit bin search, 16-byte payload alignment, boundary-tag canaries (`0xDEADBEEF` / `0xBEEFDEAD`) for buffer overrun / double-free detection, $O(1)$ bidirectional block coalescing, and a hybrid threshold strategy switching between `sbrk(2)` (< 128 KB) and anonymous `mmap(2)` (≥ 128 KB). Intercepts external Linux binaries via `LD_PRELOAD`.
+1. **Custom Dynamic Memory Allocator (`libmyalloc.so`)**: A drop-in POSIX `malloc`/`free`/`calloc`/`realloc` replacement library. Employs 8-bin segregated free lists, best-fit bin search, 16-byte payload alignment, boundary-tag canaries (`0xDEADBEEF` / `0xBEEFDEAD`) for buffer overrun / double-free detection, `O(1)` bidirectional block coalescing, and a hybrid threshold strategy switching between `sbrk(2)` (< 128 KB) and anonymous `mmap(2)` (≥ 128 KB). Intercepts external Linux binaries via `LD_PRELOAD`.
 2. **Virtual File System Process Monitor (`mem_monitor`)**: A high-efficiency system monitoring engine that directly samples kernel statistics from `/proc` using raw, unbuffered POSIX system calls (`open`, `read`, `close`) without invoking any dynamic heap allocations in its sampling loop. Features a dual-interface presentation layer:
    - **Interactive Terminal UI (TUI)**: Built with `ncurses`, providing non-blocking keyboard controls, CPU/memory percentage bars, dynamic sorting, and real-time POSIX signal dispatching.
    - **Embedded Real-Time Web GUI**: Powered by a multi-threaded embedded POSIX socket HTTP daemon (`gui_server.c`) streaming telemetry via a REST API (`/api/metrics`) to a responsive HTML5/CSS3 dark-mode dashboard.
@@ -280,19 +280,19 @@ Free chunks allocated via `sbrk()` are organized into 8 doubly-linked bins based
 
 | Bin Index | Maximum Block Size | Target Allocation Class | Search Strategy |
 |:---:|:---|:---|:---|
-| **0** | $\le 128\text{ Bytes}$ | Medium nodes, small buffers | Best-Fit |
-| **1** | $\le 256\text{ Bytes}$ | Path buffers, small structs | Best-Fit |
-| **2** | $\le 512\text{ Bytes}$ | Standard I/O chunks | Best-Fit |
-| **3** | $\le 1024\text{ Bytes (1 KB)}$ | Page fragments, small tables | Best-Fit |
-| **4** | $\le 2048\text{ Bytes (2 KB)}$ | Half-page buffers | Best-Fit |
-| **5** | $\le 4096\text{ Bytes (4 KB)}$ | Standard Linux OS pages | Best-Fit |
-| **6** | $\le 8192\text{ Bytes (8 KB)}$ | Multi-page scratch buffers | Best-Fit |
-| **7** | $> 8192\text{ Bytes} \dots \le 128\text{ KB}$ | Large heap buffers below `MMAP_THRESHOLD` | Best-Fit with Escalation |
+| **0** | `≤ 128 Bytes` | Medium nodes, small buffers | Best-Fit |
+| **1** | `≤ 256 Bytes` | Path buffers, small structs | Best-Fit |
+| **2** | `≤ 512 Bytes` | Standard I/O chunks | Best-Fit |
+| **3** | `≤ 1024 Bytes (1 KB)` | Page fragments, small tables | Best-Fit |
+| **4** | `≤ 2048 Bytes (2 KB)` | Half-page buffers | Best-Fit |
+| **5** | `≤ 4096 Bytes (4 KB)` | Standard Linux OS pages | Best-Fit |
+| **6** | `≤ 8192 Bytes (8 KB)` | Multi-page scratch buffers | Best-Fit |
+| **7** | `> 8192 Bytes … ≤ 128 KB` | Large heap buffers below `MMAP_THRESHOLD` | Best-Fit with Escalation |
 
-#### Bidirectional $O(1)$ Coalescing
+#### Bidirectional `O(1)` Coalescing
 When `my_free()` is invoked:
 1. **Canary Validation**: Both `header->magic_header == 0xDEADBEEF` and `footer->magic_footer == 0xBEEFDEAD` are verified. A mismatch triggers an immediate error abort, catching off-by-one overflows and double-free corruption.
-2. **Forward Coalescing**: Checks `(char *)header + header->block_size`. If the adjacent block is free and not mapped via `mmap`, it is unlinked from its segregated bin and merged in $O(1)$.
+2. **Forward Coalescing**: Checks `(char *)header + header->block_size`. If the adjacent block is free and not mapped via `mmap`, it is unlinked from its segregated bin and merged in `O(1)`.
 3. **Backward Coalescing**: Inspects the boundary footer located immediately before the current header (`(char *)header - sizeof(block_footer_t)`). If its canary is valid and the preceding block is marked free, both blocks are combined into a single contiguous chunk.
 
 #### Dynamic Preload Interception (`preload_shim.c`)
@@ -321,13 +321,17 @@ Traditional utilities rely on buffered glibc calls (`fopen`/`fgets`), triggering
 | `/proc/[pid]/maps` | Virtual address intervals, permissions (`rwxp`), offset, device, inode | Virtual memory map address ranges |
 
 #### Differential CPU Calculation
-Instantaneous CPU usage is derived across successive sampling intervals ($\Delta t$):
+Instantaneous CPU usage is derived from successive sampling intervals:
 
-$$\Delta \text{proc\_time} = (\text{utime}_2 + \text{stime}_2) - (\text{utime}_1 + \text{stime}_1)$$
+```text
+Δproc_time = (utime₂ + stime₂) - (utime₁ + stime₁)
 
-$$\Delta \text{system\_jiffies} = \text{total\_jiffies}_2 - \text{total\_jiffies}_1$$
+Δsystem_jiffies = total_jiffies₂ - total_jiffies₁
 
-$$\text{CPU \%} = \left( \frac{\Delta \text{proc\_time}}{\Delta \text{system\_jiffies}} \right) \times 100 \times N_{\text{cores}}$$
+CPU % = (Δproc_time / Δsystem_jiffies) × 100 × N_cores
+```
+
+Here, `utime` and `stime` are the process user/system CPU times, `total_jiffies` is the system-wide jiffy count, and `N_cores` is the configured CPU-core factor used by the implementation.
 
 ---
 
@@ -336,7 +340,7 @@ $$\text{CPU \%} = \left( \frac{\Delta \text{proc\_time}}{\Delta \text{system\_ji
 #### Interactive Terminal User Interface (TUI)
 - **Engine**: Implemented with POSIX `ncurses` using non-blocking input (`nodelay(stdscr, TRUE)`).
 - **Navigation**: Supports both arrow keys and standard **Vim bindings** (`j` for down, `k` for up).
-- **Color Thresholds**: Dynamic visual alerts (Cyan for chrome, Green for $<50\%$, Yellow for $50-80\%$, Red for $>80\%$, and inverted highlighting for selection).
+- **Color Thresholds**: Dynamic visual alerts (Cyan for chrome, Green for `< 50%`, Yellow for `50–80%`, Red for `> 80%`, and inverted highlighting for selection).
 
 #### Embedded C HTTP Server (`gui_server.c`)
 - **Zero Dependencies**: Pure POSIX socket implementation in C; no external web server or Node.js/Python runtime required.
