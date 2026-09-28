@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
 
   if (!token_provided || strlen(auth_token) == 0) {
     if (!generate_random_token(auth_token, sizeof(auth_token))) {
-      LOG_ERROR(
-          "Unable to obtain cryptographically secure randomness for the HTTP auth token");
+      LOG_ERROR("Unable to obtain cryptographically secure randomness for the "
+                "HTTP auth token");
       return 1;
     }
     LOG_INFO("Generated auth token: %s (use --token to set your own)",
@@ -113,8 +113,7 @@ int main(int argc, char **argv) {
   sa.sa_handler = sigint_handler;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
-  if (sigaction(SIGINT, &sa, NULL) != 0 ||
-      sigaction(SIGTERM, &sa, NULL) != 0) {
+  if (sigaction(SIGINT, &sa, NULL) != 0 || sigaction(SIGTERM, &sa, NULL) != 0) {
     LOG_ERRNO_ERROR("Failed to install signal handlers");
     return 1;
   }
