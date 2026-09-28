@@ -6,7 +6,7 @@
 ## Context & Problem Statement
 In systems operations and systems programming (KLEF 25CS2104E, Course Outcomes CO2 and CO3), systems engineers require an interactive, responsive terminal dashboard capable of:
 1. Presenting high-density system health metrics (multi-core CPU gauges, RAM saturation).
-2. Rendering a scrollable, sortable process table (supporting sorting by CPU% and Memory RSS).
+2. Rendering a scrollable, sortable process table (supporting sorting by CPU%, Memory RSS, PID, and Process Name).
 3. Receiving non-blocking keyboard input so that terminal rendering never blocks background telemetry updates.
 4. Dispatching POSIX process signals (`SIGSTOP`, `SIGCONT`, `SIGKILL`) directly from the keyboard with safe confirmation mechanics.
 5. Reliably restoring terminal attributes (echoing, cursor visibility, raw mode) upon normal termination or asynchronous termination signals (`SIGINT`, `SIGTERM`).
@@ -44,14 +44,14 @@ During `tui_init()`:
 ### 2. Color Palette & Alert Thresholds
 Color pairs are initialized to provide intuitive visual hierarchy:
 - `Pair 1 (CYAN / BLACK)`: Header borders, title text, and columnar table labels.
-- `Pair 2 (GREEN / BLACK)`: Nominal resource usage ($< 50%$).
-- `Pair 3 (YELLOW / BLACK)`: Elevated resource consumption ($50% - 80%$).
-- `Pair 4 (RED / BLACK)`: Critical resource threshold ($> 80%$).
+- `Pair 2 (GREEN / BLACK)`: Nominal resource usage ($< 50\%$).
+- `Pair 3 (YELLOW / BLACK)`: Elevated resource consumption ($50\% - 80\%$).
+- `Pair 4 (RED / BLACK)`: Critical resource threshold ($> 80\%$).
 - `Pair 5 (BLACK / WHITE)`: Inverted highlight bar for the currently selected process row.
 
 ### 3. Viewport Tracking (`scroll_offset`) & Selection Clamping
-- Process records are sorted according to `state->sort_mode` using the CPU and memory modes exposed by the TUI.
-- `state->selected_index` is clamped to valid process bounds ($0 le 	ext{index} < 	ext{count}$).
+- Process records are sorted according to `state->sort_mode` (`SORT_BY_CPU`, `SORT_BY_MEM`, `SORT_BY_PID`, `SORT_BY_NAME`).
+- `state->selected_index` is clamped to valid process bounds ($0 \le \text{index} < \text{count}$).
 - **Dynamic View Tracking**: `state->scroll_offset` is dynamically updated relative to the visible window size (`max_rows`). If `selected_index` moves above `scroll_offset` or below `scroll_offset + max_rows - 1`, `scroll_offset` adjusts automatically so the selected row remains highlighted and visible.
 
 ### 4. Non-Blocking Event Loop & Keyboard Bindings
@@ -77,7 +77,7 @@ The main loop executes on a 250 ms refresh cadence:
 - The return value is explicitly verified:
   - On success (`0`): Status line displays `Sent SIGSTOP to PID <PID>` or `Successfully sent SIGKILL to PID <PID>`.
   - On failure (`-1`): Status line explicitly displays error feedback (`Failed to send SIGKILL to PID <PID>`), ensuring failed operations are transparent to the operator.
-  - If the PID is not present in the current snapshot, it reports `PID <PID> no longer present in snapshot`.
+  - If the process exited before confirmation, it reports `PID <PID> no longer present in snapshot`.
 - Status messages persist for 3 seconds before clearing.
 
 ### 7. Deterministic Cleanup & Restoration
@@ -87,7 +87,7 @@ The main loop executes on a 250 ms refresh cadence:
 
 ### Positive
 - **High Responsiveness**: Non-blocking input loop ensures process monitoring continues uninterrupted.
-- **Safety**: Armed confirmation on <kbd>K</kbd> prevents accidental process termination without explicit confirmation.
+- **Safety**: Armed confirmation on <kbd>K</kbd> prevents catastrophic accidental process terminations.
 - **Accurate Feedback**: Signal dispatch errors are caught and surfaced directly in the TUI status bar.
 - **Seamless Navigation**: Automatic viewport scrolling keeps the highlighted selection in view.
 

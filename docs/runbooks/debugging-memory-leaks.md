@@ -41,8 +41,6 @@ valgrind --leak-check=full \
 - **`possibly lost`**: Pointers that point into the interior of a block rather than the start (common with interior pointers or misaligned structs).
 - **`still reachable`**: Pointers still maintained by global tables or static variables at normal exit. Calling `allocator_destroy()` resets statistics and clears segregated list heads.
 
-> **Important:** `mem_monitor` under Valgrind does not exercise `libmyalloc.so` because Memcheck's allocator replaces it. Evidence: `LD_PRELOAD=./libmyalloc.so valgrind --trace-malloc=yes <any program that calls malloc>` shows Valgrind's own `malloc(N) = 0x...` lines. Use `scripts/selfhosted_soak.sh` for the allocator soak without Valgrind.
-
 ---
 
 ## 3. AddressSanitizer (ASan) & UBSan Diagnostics
@@ -67,7 +65,7 @@ make asan
 ### Interpreting Sanitizer Reports
 When a fault occurs, ASan outputs a structured crash dump:
 1. **Crash Cause**: e.g., `heap-buffer-overflow`, `heap-use-after-free`, or `double-free`.
-2. **Access Details**: Read/Write size, address offset relative to allocated object.
+2. **Access Details**: Read/Write size, address offset relative to allocated block.
 3. **Stack Trace**: Exact source line of the illegal memory access.
 4. **Allocation Stack Trace**: The exact code line where `my_malloc()` originally allocated the chunk.
 

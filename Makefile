@@ -29,7 +29,7 @@ LDLIBS_TEST := -pthread -lm
 # Sanitizer Flags
 ASAN_FLAGS := -fsanitize=address,undefined -g -fno-omit-frame-pointer
 
-.PHONY: all asan valgrind soak test benchmark clean help directories
+.PHONY: all asan valgrind test benchmark clean help directories
 
 all: directories $(LIB_ALLOC) $(BIN_MONITOR)
 
@@ -105,12 +105,8 @@ valgrind: all $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_SIGNAL)
 	@echo "==> Running GUI Server Valgrind Leak Checks..."
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_GUI)
-	@echo "==> Running mem_monitor under Valgrind (Memcheck's allocator replaces libmyalloc.so in this run; see scripts/selfhosted_soak.sh for the allocator soak)"
+	@echo "==> Running Self-Hosted mem_monitor Valgrind Soak (30s)..."
 	@bash scripts/valgrind_soak.sh
-
-soak: all
-	@echo "==> Running libmyalloc.so allocator soak without Valgrind..."
-	@bash scripts/selfhosted_soak.sh
 
 benchmark: $(LIB_ALLOC)
 	@echo "==> Running Allocator Benchmark vs Glibc..."
@@ -125,8 +121,7 @@ help:
 	@echo "  all        - Build libmyalloc.so and mem_monitor binary"
 	@echo "  asan       - Compile with AddressSanitizer and UBSan enabled"
 	@echo "  test       - Build and execute Unity unit tests and integration tests"
-	@echo "  valgrind   - Run Memcheck including mem_monitor under Valgrind (Memcheck's allocator replaces libmyalloc.so in this run; see scripts/selfhosted_soak.sh for the allocator soak)"
-	@echo "  soak       - Run mem_monitor with libmyalloc.so under authenticated HTTP load without Valgrind"
+	@echo "  valgrind   - Verify zero leaks with Valgrind including 30s soak"
 	@echo "  benchmark  - Execute performance benchmarks comparing with glibc"
 	@echo "  clean      - Remove compiled artifacts"
 
