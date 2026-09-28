@@ -297,22 +297,33 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
     return NULL;
   }
 
+  pthread_mutex_lock(&alloc_mutex);
+
   block_header_t *header =
       (block_header_t *)((char *)ptr - sizeof(block_header_t));
   if (header->magic_header != ALLOC_MAGIC_HEADER) {
+    pthread_mutex_unlock(&alloc_mutex);
     fatal_abort(
         "[FATAL] Heap corruption: Invalid magic header canary in my_realloc\n");
   }
 
-  block_footer_t *footer =
-      (block_footer_t *)((char *)header + header->block_size -
-                         sizeof(block_footer_t));
-  if (footer->magic_footer != ALLOC_MAGIC_FOOTER) {
+  if (header->block_size < sizeof(block_header_t) + sizeof(block_footer_t)) {
+    pthread_mutex_unlock(&alloc_mutex);
+    fatal_abort("[FATAL] Heap corruption: Invalid block size in my_realloc\n");
+  }
+
+  block_footer_t *footer = (block_footer_t *)((char *)header +
+                                              header->block_size -
+                                              sizeof(block_footer_t));
+  if (footer->magic_footer != ALLOC_MAGIC_FOOTER ||
+      footer->block_size != header->block_size) {
+    pthread_mutex_unlock(&alloc_mutex);
     fatal_abort(
         "[FATAL] Heap corruption: Invalid magic footer canary in my_realloc\n");
   }
 
   if (header->is_free) {
+    pthread_mutex_unlock(&alloc_mutex);
     fatal_abort(
         "[FATAL] Double free or use after free detected in my_realloc\n");
   }
@@ -322,7 +333,8 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
     size_t aligned_payload = ALIGN(size);
     size_t total_size =
         sizeof(block_header_t) + aligned_payload + sizeof(block_footer_t);
-    pthread_mutex_lock(&alloc_mutex);
+    size_t old_requested_size = header->requested_size;
+
     block_header_t *new_header =
         mremap(header, header->block_size, total_size, MREMAP_MAYMOVE);
     if (new_header != MAP_FAILED) {
@@ -333,14 +345,19 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
                              sizeof(block_footer_t));
       new_footer->magic_footer = ALLOC_MAGIC_FOOTER;
       new_footer->block_size = total_size;
+      global_stats.total_allocated += size;
+      global_stats.total_freed += old_requested_size;
       pthread_mutex_unlock(&alloc_mutex);
       return (void *)((char *)new_header + sizeof(block_header_t));
     }
-    pthread_mutex_unlock(&alloc_mutex);
 #endif
+
+    pthread_mutex_unlock(&alloc_mutex);
+
     void *new_ptr = my_malloc(size);
     if (!new_ptr)
       return NULL;
+
     size_t copy_size =
         header->requested_size < size ? header->requested_size : size;
     memcpy(new_ptr, ptr, copy_size);
@@ -348,7 +365,6 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
     return new_ptr;
   }
 
-  pthread_mutex_lock(&alloc_mutex);
   size_t aligned_payload = ALIGN(size);
   size_t total_needed =
       sizeof(block_header_t) + aligned_payload + sizeof(block_footer_t);
@@ -387,16 +403,17 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
     return ptr;
   }
 
+  size_t old_requested_size = header->requested_size;
   pthread_mutex_unlock(&alloc_mutex);
 
   void *new_ptr = my_malloc(size);
   if (!new_ptr)
     return NULL;
 
-  size_t copy_size =
-      header->requested_size < size ? header->requested_size : size;
+  size_t copy_size = old_requested_size < size ? old_requested_size : size;
   memcpy(new_ptr, ptr, copy_size);
   my_free(ptr);
 
   return new_ptr;
 }
+
