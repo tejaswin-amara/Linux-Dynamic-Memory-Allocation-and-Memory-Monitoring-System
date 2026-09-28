@@ -66,6 +66,11 @@ void test_gui_server_routes_and_auth(void) {
   TEST_ASSERT_EQUAL_INT(0, res);
   TEST_ASSERT_NOT_NULL(strstr(resp, "200 OK"));
   TEST_ASSERT_NOT_NULL(strstr(resp, "test_proc"));
+  TEST_ASSERT_NOT_NULL(strstr(resp, "\"mem_total_kb\""));
+  TEST_ASSERT_NOT_NULL(strstr(resp, "\"mem_available_kb\""));
+  TEST_ASSERT_NOT_NULL(strstr(resp, "\"mem_usage_pct\""));
+  TEST_ASSERT_NOT_NULL(strstr(resp, "\"swap_total_kb\""));
+  TEST_ASSERT_NOT_NULL(strstr(resp, "\"swap_usage_pct\""));
 
   /* 2. POST /api/process/signal without token (401 Unauthorized) */
   char body_unauth[256];
