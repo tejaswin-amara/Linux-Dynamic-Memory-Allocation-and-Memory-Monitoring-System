@@ -6,7 +6,7 @@ This document provides exhaustive sequence diagrams and event traces illustratin
 
 ## 1. Metrics Aggregation & Web Streaming Flow
 
-This sequence traces how system metrics flow from the kernel Virtual File System (`/proc`) through the zero-allocation parser into the snapshot store, and subsequently out to both the `ncurses` TUI and the Web GUI client:
+This sequence traces how system metrics flow from the kernel Virtual File System (`/proc`) through the parser's bounded-buffer file-I/O path into the snapshot store, and subsequently out to both the `ncurses` TUI and the Web GUI client:
 
 ```mermaid
 sequenceDiagram
