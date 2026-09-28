@@ -43,9 +43,10 @@ static void send_response(int client_fd, const char *status,
                       "\r\n",
                       status, content_type, body_len,
                       extra_headers ? extra_headers : "");
-  if (hlen > 0) {
-    send_all(client_fd, header, (size_t)hlen);
+  if (hlen < 0 || (size_t)hlen >= sizeof(header)) {
+    return;
   }
+  send_all(client_fd, header, (size_t)hlen);
   if (body_len > 0) {
     send_all(client_fd, body, body_len);
   }
@@ -112,7 +113,8 @@ static void serve_file(int client_fd, const char *filepath,
                       "\r\n",
                       content_type, (long long)st.st_size);
 
-  if (hlen > 0 && send_all(client_fd, header, (size_t)hlen) == 0) {
+  if (hlen >= 0 && (size_t)hlen < sizeof(header) &&
+      send_all(client_fd, header, (size_t)hlen) == 0) {
     char buf[4096];
     ssize_t bytes_read;
     while ((bytes_read = read(fd, buf, sizeof(buf))) > 0) {
@@ -474,6 +476,7 @@ int gui_server_init(gui_server_t *server, const char *host, int port,
   server->server_fd = -1;
   server->is_running = false;
   server->active_workers = 0;
+  server->initialized = false;
 
   if (pthread_mutex_init(&server->worker_mutex, NULL) != 0) {
     LOG_ERROR("Failed to init worker mutex");
@@ -503,6 +506,7 @@ int gui_server_init(gui_server_t *server, const char *host, int port,
     return -1;
   }
 
+  server->initialized = true;
   return 0;
 }
 
@@ -537,6 +541,7 @@ int gui_server_start(gui_server_t *server) {
   if (inet_pton(AF_INET, server->bind_host, &addr.sin_addr) <= 0) {
     LOG_ERROR("Invalid bind address: %s", server->bind_host);
     close(server->server_fd);
+    server->server_fd = -1;
     return -1;
   }
 
@@ -568,22 +573,24 @@ int gui_server_start(gui_server_t *server) {
 }
 
 void gui_server_stop(gui_server_t *server) {
-  if (!server || !server->is_running)
+  if (!server || !server->initialized)
     return;
 
-  server->is_running = false;
-  if (server->server_fd >= 0) {
-    close(server->server_fd);
-    server->server_fd = -1;
-  }
+  if (server->is_running) {
+    server->is_running = false;
+    if (server->server_fd >= 0) {
+      close(server->server_fd);
+      server->server_fd = -1;
+    }
 
-  pthread_join(server->thread, NULL);
+    pthread_join(server->thread, NULL);
 
-  pthread_mutex_lock(&server->worker_mutex);
-  while (server->active_workers > 0) {
-    pthread_cond_wait(&server->worker_cond, &server->worker_mutex);
+    pthread_mutex_lock(&server->worker_mutex);
+    while (server->active_workers > 0) {
+      pthread_cond_wait(&server->worker_cond, &server->worker_mutex);
+    }
+    pthread_mutex_unlock(&server->worker_mutex);
   }
-  pthread_mutex_unlock(&server->worker_mutex);
 
   pthread_mutex_destroy(&server->worker_mutex);
   pthread_cond_destroy(&server->worker_cond);
@@ -593,6 +600,7 @@ void gui_server_stop(gui_server_t *server) {
     free(server->latest_snapshot);
     server->latest_snapshot = NULL;
   }
+  server->initialized = false;
 }
 
 void gui_server_update_snapshot(gui_server_t *server,
