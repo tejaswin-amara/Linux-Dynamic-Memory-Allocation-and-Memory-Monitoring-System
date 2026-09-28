@@ -12,11 +12,11 @@ typedef struct {
   int port;
   char auth_token[MAX_AUTH_TOKEN_LEN];
   int server_fd;
-  volatile bool is_running;
+  _Atomic bool is_running;
   pthread_t thread;
   pthread_rwlock_t snapshot_lock;
   system_snapshot_t *latest_snapshot;
-  _Atomic int active_workers;
+  int active_workers;
   bool initialized;
   pthread_mutex_t worker_mutex;
   pthread_cond_t worker_cond;
