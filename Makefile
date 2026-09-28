@@ -5,7 +5,7 @@
 
 CC ?= gcc
 CFLAGS ?= -Wall -Wextra -Werror -pedantic -std=c11 -D_GNU_SOURCE -pthread -fPIC -g -O2 -MMD -MP
-INC_FLAGS := -Iinclude -Itests/unity
+INC_FLAGS := -Iinclude -Isrc/allocator -Itests/unity
 
 # Targets and Directories
 BUILD_DIR := build
