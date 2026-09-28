@@ -179,7 +179,8 @@ void test_free_list_link_corruption_abort(void) {
 
     block_header_t *block =
         (block_header_t *)((char *)ptr - sizeof(block_header_t));
-    block->next = (block_header_t *)(uintptr_t)0x1;
+    block_header_t fake_next = {0};
+    block->next = &fake_next;
     free_list_remove(block);
     exit(0);
   }
