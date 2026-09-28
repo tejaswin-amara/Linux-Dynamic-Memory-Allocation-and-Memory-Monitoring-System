@@ -11,10 +11,10 @@ A fundamental tenet of performance monitoring tools is **minimizing the observer
 2. Introduces caching and buffering delays that can lead to stale metric reads.
 3. Consumes unnecessary file descriptor handles and internal POSIX stream locking overhead (`flockfile`).
 
-We required a telemetry collection engine capable of rapid sampling (250 ms to 1000 ms intervals) across hundreds of system processes without allocating heap memory or degrading system responsiveness.
+We required a telemetry collection engine capable of rapid sampling (250 ms to 1000 ms intervals) across hundreds of system processes while keeping parser-owned buffers bounded and avoiding direct heap-management calls in the parser code.
 
 ## Decision Drivers
-- **No-Explicit-Allocation Sampling**: Zero dynamic allocations during the critical monitoring loop.
+- **No Direct Heap Calls in Parser**: `proc_parser.c` does not call `malloc`, `calloc`, or `realloc`; parser-owned buffers are fixed-size.
 - **Low CPU Overhead**: Fast tokenization and numeric parsing executed directly from stack memory.
 - **Accurate Differential Scheduling Metrics**: Real-time multi-core CPU utilization computed from raw jiffies.
 - **Container and Cloud Compatibility**: Unprivileged operation within standard Linux namespaces without requiring root or kernel modules.
@@ -30,10 +30,10 @@ We required a telemetry collection engine capable of rapid sampling (250 ms to 1
    - *Pros*: Ultra-low overhead kernel-space event sampling.
    - *Cons*: Requires root privileges (`CAP_SYS_ADMIN`/`CAP_BPF`); not portable to restricted containers or pedagogical execution environments.
 4. **Direct Unbuffered POSIX File I/O (Selected)**:
-   - *Pros*: Completely no-explicit-allocation; direct interaction with kernel VFS; deterministic execution time; minimal stack footprint.
+   - *Pros*: No direct parser heap allocation; direct file-descriptor I/O for pseudo-files; small bounded buffers.
 
 ## Decision Outcome
-We implemented a **direct, unbuffered VFS parsing engine** relying strictly on low-level POSIX system calls and fixed-size stack buffers:
+We implemented a **direct, unbuffered VFS parsing engine** using low-level POSIX file I/O and fixed-size parser buffers:
 
 ### 1. Unbuffered Syscall Engine
 All interactions with `/proc` strictly use:
@@ -42,7 +42,7 @@ int fd = open(filepath, O_RDONLY);
 ssize_t bytes = read(fd, stack_buffer, sizeof(stack_buffer) - 1);
 close(fd);
 ```
-Stack buffers are sized at 4096 bytes (matching standard Linux virtual memory page size), guaranteeing that small pseudo-files (`/proc/stat`, `/proc/meminfo`, `/proc/[pid]/stat`, `/proc/[pid]/status`) are retrieved in a single atomic `read(2)` syscall.
+Parser file buffers are sized at 4096 or 8192 bytes for the current pseudo-files. `/proc/[pid]/maps` is exposed through a bounded caller-provided buffer. Directory enumeration uses the POSIX `opendir(3)` / `readdir(3)` interfaces.
 
 ### 2. Monitored VFS Nodes & Extracted Metrics
 | VFS Path | Extracted Parameters | Computation Target |
@@ -67,9 +67,9 @@ This formula accurately reflects multi-threaded utilization and normalizes perce
 ## Consequences
 
 ### Positive
-- **Deterministic Zero-Allocation Execution**: Completely eliminates memory churn and heap fragmentation during telemetry gathering.
-- **Minimal Observer Impact**: CPU consumption of `mem_monitor` typically remains under 1% on modern Linux systems.
-- **Portability**: Operates without special privileges in user space across Ubuntu, Debian, Alpine, and containerized Docker environments.
+- **Bounded Parser-Owned Memory**: The parser uses fixed-size local buffers and avoids direct heap-management calls in the parsing functions.
+- **Minimal Observer Impact**: The sampling path keeps parser-owned buffers bounded and avoids unnecessary runtime dependencies.
+- **Portability**: Operates without special privileges in standard Linux user-space environments.
 
 ### Negative
 - **Buffer Size Constraints**: Files exceeding the 4096-byte stack buffer (e.g. detailed `/proc/[pid]/maps`) require bounded multi-chunk processing or targeted truncation.
@@ -77,5 +77,5 @@ This formula accurately reflects multi-threaded utilization and normalizes perce
 
 ## Verification & Compliance
 - **Unit Tests**: `tests/test_proc_parser.c` validates parsing correctness against live system metrics.
-- **Syscall Verification**: Traced with `strace -e trace=openat,read,close,brk,mmap ./mem_monitor --json` to verify the parser's expected file-I/O path; allocator activity outside the parser must be interpreted separately.
+- **Source Verification**: `proc_parser.c` contains no direct `malloc`, `calloc`, or `realloc` calls; file parsing uses bounded local buffers while process enumeration uses `opendir(3)` / `readdir(3)`.
 - **Valgrind**: Verified zero memory leaks under `make valgrind`.
