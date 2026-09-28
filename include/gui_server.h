@@ -17,6 +17,7 @@ typedef struct {
   pthread_rwlock_t snapshot_lock;
   system_snapshot_t *latest_snapshot;
   _Atomic int active_workers;
+  bool initialized;
   pthread_mutex_t worker_mutex;
   pthread_cond_t worker_cond;
 } gui_server_t;
