@@ -151,6 +151,7 @@ int main(int argc, char **argv) {
 
   if (gui_server_start(&server) != 0) {
     LOG_ERROR("Failed to start GUI server");
+    gui_server_stop(&server);
     free(snapshot);
     return 1;
   }
