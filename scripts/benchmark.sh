@@ -49,7 +49,7 @@ echo "1. Baseline (glibc standard malloc):"
 
 echo ""
 echo "2. Custom Allocator (libmyalloc.so via LD_PRELOAD):"
-LD_PRELOAD=./libmyalloc.so /tmp/bench_runner || echo "[Benchmark completed]"
+LD_PRELOAD=./libmyalloc.so /tmp/bench_runner
 
 rm -f /tmp/bench_runner /tmp/bench_runner.c
 
@@ -110,7 +110,7 @@ EOF
 gcc -O2 /tmp/frag_runner.c -o /tmp/frag_runner
 
 echo "Running fragmentation benchmark..."
-LD_PRELOAD=./libmyalloc.so /tmp/frag_runner || echo "[Fragmentation benchmark completed]"
+LD_PRELOAD=./libmyalloc.so /tmp/frag_runner
 
 rm -f /tmp/frag_runner /tmp/frag_runner.c
 echo "================================================================================"
