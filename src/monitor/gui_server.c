@@ -565,12 +565,14 @@ int gui_server_start(gui_server_t *server) {
     LOG_ERRNO_ERROR("Failed to bind HTTP socket to %s:%d", server->bind_host,
                     server->port);
     close(server->server_fd);
+    server->server_fd = -1;
     return -1;
   }
 
   if (listen(server->server_fd, 128) < 0) {
     LOG_ERRNO_ERROR("Failed to listen on HTTP socket");
     close(server->server_fd);
+    server->server_fd = -1;
     return -1;
   }
 
