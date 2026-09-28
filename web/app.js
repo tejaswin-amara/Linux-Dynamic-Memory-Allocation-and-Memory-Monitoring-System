@@ -4,10 +4,6 @@ let selectedPid = null;
 let currentProcesses = [];
 let apiToken = '';
 
-if (typeof sessionStorage !== 'undefined') {
-    apiToken = sessionStorage.getItem('memMonitorApiToken') || '';
-}
-
 async function fetchMetrics() {
     try {
         const response = await fetch('/api/metrics');
@@ -180,11 +176,8 @@ if (typeof document !== 'undefined') {
     const tokenElem = document.getElementById('api-token');
     if (tokenElem) {
         tokenElem.value = apiToken;
-        tokenElem.addEventListener('change', () => {
+        tokenElem.addEventListener('input', () => {
             apiToken = tokenElem.value.trim();
-            if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem('memMonitorApiToken', apiToken);
-            }
         });
     }
 
