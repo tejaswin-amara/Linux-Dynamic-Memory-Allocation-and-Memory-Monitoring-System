@@ -36,7 +36,7 @@ int main(void) {
     return 0;
 }
 EOF
-$CC:-cc -O2 -Wall -Wextra -Werror -std=c11 -D_GNU_SOURCE /tmp/allocator_api_test.c -o /tmp/allocator_api_test
+${CC:-cc} -O2 -Wall -Wextra -Werror -std=c11 -D_GNU_SOURCE /tmp/allocator_api_test.c -o /tmp/allocator_api_test
 LD_PRELOAD=./libmyalloc.so /tmp/allocator_api_test
 rm -f /tmp/allocator_api_test /tmp/allocator_api_test.c
 echo "  [PASS] LD_PRELOAD aligned-allocation API smoke test."
