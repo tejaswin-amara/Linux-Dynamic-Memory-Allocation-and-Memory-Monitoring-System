@@ -158,6 +158,18 @@ void test_allocator_destroy_reset(void) {
   allocator_init();
 }
 
+void test_integrity_rejects_invalid_block_size(void) {
+  void *ptr = my_malloc(64);
+  TEST_ASSERT_NOT_NULL(ptr);
+
+  block_header_t *hdr =
+      (block_header_t *)((char *)ptr - sizeof(block_header_t));
+  hdr->block_size = 1;
+  TEST_ASSERT_EQUAL_INT(-1, allocator_verify_integrity());
+  hdr->block_size = sizeof(block_header_t) + ALIGN(64) + sizeof(block_footer_t);
+  my_free(ptr);
+}
+
 void test_coalescing(void) {
   allocator_stats_t before = allocator_get_stats();
 
@@ -195,6 +207,7 @@ int main(void) {
   RUN_TEST(test_canary_corruption_abort);
   RUN_TEST(test_allocator_multithreaded_stress);
   RUN_TEST(test_allocator_destroy_reset);
+  RUN_TEST(test_integrity_rejects_invalid_block_size);
   RUN_TEST(test_coalescing);
   return UnityEnd();
 }
