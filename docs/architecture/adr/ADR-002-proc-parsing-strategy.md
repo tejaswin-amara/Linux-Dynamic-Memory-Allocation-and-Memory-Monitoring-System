@@ -14,7 +14,7 @@ A fundamental tenet of performance monitoring tools is **minimizing the observer
 We required a telemetry collection engine capable of rapid sampling (250 ms to 1000 ms intervals) across hundreds of system processes without allocating heap memory or degrading system responsiveness.
 
 ## Decision Drivers
-- **Zero-Allocation Sampling**: Zero dynamic allocations during the critical monitoring loop.
+- **No-Explicit-Allocation Sampling**: Zero dynamic allocations during the critical monitoring loop.
 - **Low CPU Overhead**: Fast tokenization and numeric parsing executed directly from stack memory.
 - **Accurate Differential Scheduling Metrics**: Real-time multi-core CPU utilization computed from raw jiffies.
 - **Container and Cloud Compatibility**: Unprivileged operation within standard Linux namespaces without requiring root or kernel modules.
@@ -29,8 +29,8 @@ We required a telemetry collection engine capable of rapid sampling (250 ms to 1
 3. **Kernel eBPF / Perf Events**:
    - *Pros*: Ultra-low overhead kernel-space event sampling.
    - *Cons*: Requires root privileges (`CAP_SYS_ADMIN`/`CAP_BPF`); not portable to restricted containers or pedagogical execution environments.
-4. **Direct Unbuffered POSIX File Syscalls (`open(2)`, `read(2)`, `close(2)`) (Selected)**:
-   - *Pros*: Completely zero-allocation; direct interaction with kernel VFS; deterministic execution time; minimal stack footprint.
+4. **Direct Unbuffered POSIX File I/O (Selected)**:
+   - *Pros*: Completely no-explicit-allocation; direct interaction with kernel VFS; deterministic execution time; minimal stack footprint.
 
 ## Decision Outcome
 We implemented a **direct, unbuffered VFS parsing engine** relying strictly on low-level POSIX system calls and fixed-size stack buffers:
@@ -77,5 +77,5 @@ This formula accurately reflects multi-threaded utilization and normalizes perce
 
 ## Verification & Compliance
 - **Unit Tests**: `tests/test_proc_parser.c` validates parsing correctness against live system metrics.
-- **Syscall Verification**: Traced with `strace -e trace=openat,read,close ./mem_monitor --json` confirming zero `brk`/`mmap` calls during sampling.
+- **Syscall Verification**: Traced with `strace -e trace=openat,read,close,brk,mmap ./mem_monitor --json` to verify the parser's expected file-I/O path; allocator activity outside the parser must be interpreted separately.
 - **Valgrind**: Verified zero memory leaks under `make valgrind`.
