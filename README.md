@@ -6,19 +6,33 @@
 [![Standard](https://img.shields.io/badge/Standard-C11%20%7C%20POSIX.1--2008-blue.svg)](https://en.wikipedia.org/wiki/C11_(C_standard_revision))
 [![Platform](https://img.shields.io/badge/Platform-Linux%20x86__64-orange.svg)](https://kernel.org)
 [![Sanitizers](https://img.shields.io/badge/Sanitizers-ASan%20%7C%20UBSan-brightgreen.svg)](#6-verification-benchmarking--stress-testing)
-[![Valgrind](https://img.shields.io/badge/Valgrind-Zero%20Leaks-brightgreen.svg)](#6-verification-benchmarking--stress-testing)
+[![Valgrind](https://img.shields.io/badge/Valgrind-Memcheck-1f6feb)](https://valgrind.org/)
 [![Testing](https://img.shields.io/badge/Tests-Unity%20Framework-success.svg)](https://github.com/ThrowTheSwitch/Unity)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Curriculum](https://img.shields.io/badge/Capstone-KLEF%2025CS2104E-red.svg)](#1-curriculum-traceability-matrix-25cs2104e)
 
 **A low-level Linux systems engineering project combining a custom dynamic memory allocator with a real-time process telemetry and task-management engine.**
 
-[Key Features](#key-features) • [Visual Previews](#visual-previews) • [Curriculum Matrix](#1-curriculum-traceability-matrix-25cs2104e) • [Architecture](#2-system-architecture) • [Core Modules](#3-core-modules-deep-dive) • [Quickstart](#4-quickstart--execution-guide) • [Benchmarks](#6-verification-benchmarking--stress-testing) • [ADRs & Docs](#8-documentation--architecture-decision-records)
+[Key Features](#key-features) • [Visual Previews](#visual-previews) • [Project at a Glance](#project-at-a-glance) • [Architecture](#2-system-architecture) • [Quickstart](#4-quickstart--execution-guide) • [Verification](#6-verification-benchmarking--stress-testing) • [ADRs & Docs](#8-documentation--architecture-decision-records)
 
 </div>
 
 ---
 
+## Project at a glance
+
+| Layer | What is here |
+|---|---|
+| **Allocator** | `libmyalloc.so` with 8 segregated bins, canaries, splitting/coalescing, `sbrk(2)` and `mmap(2)` |
+| **Monitor** | `mem_monitor` reading Linux `/proc` data and computing live process/system telemetry |
+| **Interfaces** | ncurses TUI + embedded C HTTP server + dark-mode browser dashboard |
+| **Control plane** | Authenticated `POST /api/process/signal` with POSIX signal dispatch |
+| **Verification** | Unity tests, XSS checks, ASan/UBSan, Valgrind, real allocator soak, benchmarks |
+| **Standards** | C11, POSIX.1-2008, Linux x86_64 |
+
+> **Verified baseline:** the current project branch has a green GCC + Clang CI pipeline covering the real allocator soak and closure verification gate.
+
+---
 ## Overview
 
 Built for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**, this repository brings two OS-level engineering problems together in one C11/POSIX codebase:
@@ -34,8 +48,8 @@ Built for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**
 
 - **Segregated Free Lists (8 Size Classes)**: Drastically reduces external fragmentation and lookup latency compared to standard linked-list allocators.
 - **Canary-Guarded Boundary Tags**: 32-bit header canary (`0xDEADBEEF`) and 32-bit footer canary (`0xBEEFDEAD`) provide instant crash diagnostics on heap corruption.
-- **Zero-Allocation Sampling Engine**: Telemetry reads consume zero heap allocations in steady state; reads are dispatched into pre-allocated stack buffers to guarantee non-invasive profiling.
-- **Microsecond Differential CPU Calculation**: Accurately computes true multi-core differential CPU utilization against system jiffies delta.
+- **Low-allocation `/proc` parsing path**: telemetry parsing uses fixed-size buffers and direct POSIX file I/O to keep the sampling path predictable.
+- **Differential CPU Calculation**: Computes process/system CPU utilisation from successive Linux jiffy snapshots.
 - **Dual Interface Concurrency**: The ncurses TUI and embedded HTTP server share telemetry snapshots protected by a thread-safe read-write lock (`pthread_rwlock_t`).
 - **Interactive Signal Control**: Send POSIX signals (`SIGSTOP`, `SIGCONT`, `SIGTERM`, `SIGKILL`) directly from the terminal keyboard or the Web GUI buttons.
 - **Verification-first**: CI exercises formatting, strict C11 builds, unit/integration tests, ASan/UBSan, Valgrind, the real allocator soak, closure checks, and benchmarks.
@@ -558,9 +572,11 @@ bash scripts/stress_test.sh
 │   ├── test_signal_handler.c              # Signal handler unit test suite
 │   └── integration_test.sh                # End-to-end integration test runner
 └── scripts/
-    ├── run_ubuntu.sh                      # Automated Ubuntu dependency installer and runner
     ├── benchmark.sh                       # Allocation throughput vs glibc & fragmentation bench
-    └── stress_test.sh                     # Multithreaded concurrent allocation stress tester
+    ├── selfhosted_soak.sh                # Real libmyalloc.so allocator soak
+    ├── valgrind_soak.sh                   # mem_monitor Valgrind soak
+    ├── stress_test.sh                     # Multithreaded concurrent allocation stress tester
+    └── run_ubuntu.sh                      # Automated Ubuntu dependency installer and runner
 ```
 
 ---
