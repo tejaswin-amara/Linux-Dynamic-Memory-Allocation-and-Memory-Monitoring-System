@@ -55,18 +55,18 @@ We implemented a **lightweight, multi-threaded embedded C HTTP daemon**:
 ### 5. Synchronization Model (`pthread_rwlock_t`)
 The monitoring loop and HTTP workers communicate via a shared `system_snapshot_t` structure protected by a POSIX Read-Write Lock:
 - **Writer (Monitor Loop)**: Acquires an exclusive write lock (`pthread_rwlock_wrlock`) during the microsecond memory copy of fresh telemetry via `gui_server_update_snapshot`.
-- **Readers (HTTP Workers)**: Acquire shared read locks (`pthread_rwlock_rdlock`) in `serve_metrics_json` during JSON serialization into dynamically allocated heap memory. Multiple readers can serialize concurrently, but the read lock remains held for the serialization duration and can therefore delay the monitor's exclusive snapshot update.
+- **Readers (HTTP Workers)**: Acquire shared read locks (`pthread_rwlock_rdlock`) in `serve_metrics_json` during JSON serialization into dynamically allocated heap memory. Multiple readers can serialize concurrently, but they can delay the monitor's exclusive snapshot update while the read lock is held during serialization.
 
 ### 6. REST API Contract, CORS & Static Assets
 - **Static Assets**:
   - `GET /` or `GET /index.html` $\rightarrow$ Serves `web/index.html` (`text/html`).
-  - `GET /style.css` $ightarrow$ Serves `web/style.css` (`text/css`).
-  - `GET /app.js` $ightarrow$ Serves `web/app.js` (`application/javascript`).
+  - `GET /style.css` $\\rightarrow$ Serves `web/style.css` (`text/css`).
+  - `GET /app.js` $\\rightarrow$ Serves `web/app.js` (`application/javascript`).
 - **Telemetry Stream & CORS Policy**:
-  - `GET /api/metrics` $ightarrow$ Serializes snapshot into an HTTP/1.1 200 OK JSON response containing CPU%, per-core count, memory capacity and utilization, and process array.
+  - `GET /api/metrics` $\\rightarrow$ Serializes snapshot into an HTTP/1.1 200 OK JSON response containing CPU%, per-core count, memory capacity and utilization, and process array.
   - **CORS Scope**: `Access-Control-Allow-Origin: *` is attached **exclusively to `/api/metrics`** to enable browser cross-origin telemetry polling. It is omitted from `/api/process/signal`; token validation remains the authorization control for signal requests.
 - **Signal Control**:
-  - `POST /api/process/signal` $ightarrow$ Authenticates token, parses JSON payload `{"pid": <PID>, "signal": "<NAME>"}`, enforces PID bounds ($1 < 	ext{PID} le 4194304$), resolves signal name via `signal_parse_name()`, and dispatches signal via `signal_send_to_process()`.
+  - `POST /api/process/signal` $\\rightarrow$ Authenticates token, parses JSON payload `{"pid": <PID>, "signal": "<NAME>"}`, enforces PID bounds ($1 < 	ext{PID} le 4194304$), resolves signal name via `signal_parse_name()`, and dispatches signal via `signal_send_to_process()`.
 
 ### 7. Frontend Architecture
 The web client is built with standard vanilla web technologies:
