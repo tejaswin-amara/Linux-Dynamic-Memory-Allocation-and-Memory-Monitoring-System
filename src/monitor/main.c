@@ -56,8 +56,10 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
       print_usage(argv[0]);
       return 0;
-    } else if (strcmp(argv[i], "--port") == 0 || strcmp(argv[i], "--bind") == 0 ||
-               strcmp(argv[i], "--host") == 0 || strcmp(argv[i], "--token") == 0) {
+    } else if (strcmp(argv[i], "--port") == 0 ||
+               strcmp(argv[i], "--bind") == 0 ||
+               strcmp(argv[i], "--host") == 0 ||
+               strcmp(argv[i], "--token") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "Missing value for %s\n", argv[i]);
         print_usage(argv[0]);
@@ -98,10 +100,12 @@ int main(int argc, char **argv) {
 
   if (!token_provided || strlen(auth_token) == 0) {
     if (!generate_random_token(auth_token, sizeof(auth_token))) {
-      LOG_ERROR("Unable to obtain cryptographically secure randomness for the HTTP auth token");
+      LOG_ERROR(
+          "Unable to obtain cryptographically secure randomness for the HTTP auth token");
       return 1;
     }
-    LOG_INFO("Generated auth token: %s (use --token to set your own)", auth_token);
+    LOG_INFO("Generated auth token: %s (use --token to set your own)",
+             auth_token);
   }
 
   struct sigaction sa;
