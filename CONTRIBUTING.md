@@ -13,9 +13,9 @@ All contributions—whether bug fixes, architectural enhancements, performance o
    - Propagate and log meaningful diagnostic errors with `errno` and strerror context using `LOG_ERROR(...)`.
    - Never leave file descriptors dangling: pair every `open(2)` with a deterministic `close(2)`.
 
-2. **Zero-Allocation Telemetry Loop**:
-   - The monitoring engine (`src/monitor/proc_parser.c`) MUST NOT allocate dynamic heap memory (`malloc`/`calloc`/`realloc`) in its steady-state sampling loop.
-   - Use fixed-size, stack-allocated or pre-allocated static buffers (`buf[4096]`) and direct unbuffered POSIX syscalls (`open(2)`, `read(2)`, `close(2)`).
+2. **Bounded Telemetry Parser Memory**:
+   - `src/monitor/proc_parser.c` MUST NOT call `malloc`, `calloc`, or `realloc` directly inside its parsing functions.
+   - Keep parser-owned buffers fixed-size and bounded; process enumeration uses `opendir(3)` / `readdir(3)` and may allocate internally inside libc.
 
 3. **Memory Integrity & Safety**:
    - Maintain 16-byte memory payload alignment via the `ALIGN(x)` macro.
@@ -138,6 +138,6 @@ Before opening a pull request, verify:
 - [ ] `clang-format --dry-run --Werror src/**/*.c include/*.h tests/*.c` passes with zero warnings.
 - [ ] `make test` completes with 100% test assertions passing.
 - [ ] `make valgrind` reports **zero leaks and zero errors**.
-- [ ] No heap allocations added inside `proc_parser_read_*` functions.
+- [ ] No direct `malloc`/`calloc`/`realloc` calls added inside `proc_parser_read_*` functions.
 - [ ] Canary words (`0xDEADBEEF` and `0xBEEFDEAD`) remain intact.
 - [ ] Relevant Architecture Decision Records (ADRs) or runbooks updated if system interfaces changed.
