@@ -460,8 +460,16 @@ static void *gui_server_worker(void *arg) {
 
     pthread_t thread;
     pthread_attr_t attr;
-    if (pthread_attr_init(&attr) != 0 ||
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0) {
+    if (pthread_attr_init(&attr) != 0) {
+      close(client_fd);
+      free(conn);
+      pthread_mutex_lock(&server->worker_mutex);
+      server->active_workers--;
+      pthread_cond_broadcast(&server->worker_cond);
+      pthread_mutex_unlock(&server->worker_mutex);
+      continue;
+    }
+    if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0) {
       pthread_attr_destroy(&attr);
       close(client_fd);
       free(conn);
