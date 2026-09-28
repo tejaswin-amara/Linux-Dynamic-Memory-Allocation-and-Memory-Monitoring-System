@@ -20,7 +20,7 @@ In systems operations and systems programming (KLEF 25CS2104E, Course Outcomes C
 - **Clean Signal Handling & Teardown**: Preventing terminal corruption when the application is interrupted.
 
 ## Considered Alternatives
-1. **Raw ANSI Escape Codes (`[...`)**:
+1. **Raw ANSI Escape Codes (`\\033[...]`):
    - *Pros*: Zero external library dependencies.
    - *Cons*: Highly fragile; hardcoded terminal assumption; complex terminal dimension detection (`TIOCGWINSZ`); manual dirty-rectangle tracking required to prevent severe screen flickering.
 2. **Modern C++ TUI Frameworks (FTXUI / Notcurses)**:
