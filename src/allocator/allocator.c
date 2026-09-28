@@ -196,9 +196,9 @@ ALLOC_API void my_free(void *ptr) {
     fatal_abort("[FATAL] Heap corruption: Invalid block size in my_free\n");
   }
 
-  block_footer_t *footer = (block_footer_t *)((char *)header +
-                                              header->block_size -
-                                              sizeof(block_footer_t));
+  block_footer_t *footer =
+      (block_footer_t *)((char *)header + header->block_size -
+                         sizeof(block_footer_t));
   if (footer->magic_footer != ALLOC_MAGIC_FOOTER ||
       footer->block_size != header->block_size) {
     pthread_mutex_unlock(&alloc_mutex);
