@@ -98,12 +98,12 @@
             <h3>Dispatch POSIX Signal</h3>
             <p>Target Process: <strong id="modal-proc-name"></strong> (PID: <span id="modal-pid"></span>)</p>
             <div class="signal-buttons">
-                <button class="btn btn-warning" onclick="sendSignal('SIGSTOP')">SIGSTOP (Pause)</button>
-                <button class="btn btn-info" onclick="sendSignal('SIGCONT')">SIGCONT (Resume)</button>
-                <button class="btn btn-primary" onclick="sendSignal('SIGTERM')">SIGTERM (Terminate)</button>
-                <button class="btn btn-danger" onclick="sendSignal('SIGKILL')">SIGKILL (Force Kill)</button>
+                <button class="btn btn-warning signal-btn" data-signal="SIGSTOP">SIGSTOP (Pause)</button>
+                <button class="btn btn-info signal-btn" data-signal="SIGCONT">SIGCONT (Resume)</button>
+                <button class="btn btn-primary signal-btn" data-signal="SIGTERM">SIGTERM (Terminate)</button>
+                <button class="btn btn-danger signal-btn" data-signal="SIGKILL">SIGKILL (Force Kill)</button>
             </div>
-            <button class="btn btn-secondary close-modal" onclick="closeModal()">Cancel</button>
+            <button id="close-modal-btn" class="btn btn-secondary close-modal">Cancel</button>
         </div>
     </div>
 
