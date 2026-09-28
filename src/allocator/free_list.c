@@ -7,6 +7,13 @@ static void fatal_abort(const char *msg) {
 #include "free_list_internal.h"
 #include <unistd.h>
 
+static void fatal_abort(const char *msg) {
+  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
+  (void)ret;
+  abort();
+}
+
+
 static const size_t size_class_limits[NUM_SIZE_CLASSES] = {
     128, 256, 512, 1024, 2048, 4096, 8192, MMAP_THRESHOLD};
 
