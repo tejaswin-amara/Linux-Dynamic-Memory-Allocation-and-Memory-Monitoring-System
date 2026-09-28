@@ -105,21 +105,21 @@ static void serve_file(int client_fd, const char *filepath,
   }
 
   char header[512];
-  int hlen =
-      snprintf(header, sizeof(header),
-               "HTTP/1.1 200 OK\r\n"
-               "Content-Type: %s\r\n"
-               "Content-Length: %lld\r\n"
-               "Connection: close\r\n"
-               "X-Content-Type-Options: nosniff\r\n"
-               "X-Frame-Options: DENY\r\n"
-               "Referrer-Policy: no-referrer\r\n"
-               "Cache-Control: no-store\r\n"
-               "Content-Security-Policy: default-src 'self'; object-src 'none'; "
-               "base-uri 'self'; frame-ancestors 'none'; script-src 'self'; "
-               "style-src 'self' 'unsafe-inline'; connect-src 'self'\r\n"
-               "\r\n",
-               content_type, (long long)st.st_size);
+  int hlen = snprintf(
+      header, sizeof(header),
+      "HTTP/1.1 200 OK\r\n"
+      "Content-Type: %s\r\n"
+      "Content-Length: %lld\r\n"
+      "Connection: close\r\n"
+      "X-Content-Type-Options: nosniff\r\n"
+      "X-Frame-Options: DENY\r\n"
+      "Referrer-Policy: no-referrer\r\n"
+      "Cache-Control: no-store\r\n"
+      "Content-Security-Policy: default-src 'self'; object-src 'none'; "
+      "base-uri 'self'; frame-ancestors 'none'; script-src 'self'; "
+      "style-src 'self' 'unsafe-inline'; connect-src 'self'\r\n"
+      "\r\n",
+      content_type, (long long)st.st_size);
 
   if (hlen >= 0 && (size_t)hlen < sizeof(header) &&
       send_all(client_fd, header, (size_t)hlen) == 0) {
@@ -165,15 +165,11 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
       (snap && snap->truncated) ? "true" : "false",
       snap ? snap->cpu.total_usage_pct : 0.0f, snap ? snap->cpu.user_pct : 0.0f,
       snap ? snap->cpu.system_pct : 0.0f, snap ? snap->cpu.idle_pct : 0.0f,
-      snap ? snap->cpu.core_count : 0,
-      snap ? snap->mem.mem_total_kb : 0UL,
+      snap ? snap->cpu.core_count : 0, snap ? snap->mem.mem_total_kb : 0UL,
       snap ? snap->mem.mem_available_kb : 0UL,
-      snap ? snap->mem.mem_free_kb : 0UL,
-      snap ? snap->mem.buffers_kb : 0UL,
-      snap ? snap->mem.cached_kb : 0UL,
-      snap ? snap->mem.mem_usage_pct : 0.0f,
-      snap ? snap->mem.swap_total_kb : 0UL,
-      snap ? snap->mem.swap_free_kb : 0UL,
+      snap ? snap->mem.mem_free_kb : 0UL, snap ? snap->mem.buffers_kb : 0UL,
+      snap ? snap->mem.cached_kb : 0UL, snap ? snap->mem.mem_usage_pct : 0.0f,
+      snap ? snap->mem.swap_total_kb : 0UL, snap ? snap->mem.swap_free_kb : 0UL,
       snap ? snap->mem.swap_usage_pct : 0.0f);
 
   if (w < 0 || (size_t)w >= cap) {
