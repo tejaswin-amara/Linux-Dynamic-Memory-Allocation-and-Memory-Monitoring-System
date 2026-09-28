@@ -130,10 +130,15 @@ int free_list_verify_integrity(void) {
   for (int i = 0; i < NUM_SIZE_CLASSES; ++i) {
     block_header_t *curr = segregated_heads[i];
     while (curr) {
-      if (curr->magic_header != ALLOC_MAGIC_HEADER) {
+      if (curr->magic_header != ALLOC_MAGIC_HEADER ||
+          !curr->is_free ||
+          curr->block_size <
+              sizeof(block_header_t) + sizeof(block_footer_t)) {
         return -1;
       }
-      if (!curr->is_free) {
+      if ((curr->prev == NULL && segregated_heads[i] != curr) ||
+          (curr->prev && curr->prev->next != curr) ||
+          (curr->next && curr->next->prev != curr)) {
         return -1;
       }
       block_footer_t *footer =
