@@ -110,6 +110,11 @@ static void serve_file(int client_fd, const char *filepath,
                       "Content-Type: %s\r\n"
                       "Content-Length: %lld\r\n"
                       "Connection: close\r\n"
+                      "X-Content-Type-Options: nosniff\r\n"
+                      "X-Frame-Options: DENY\r\n"
+                      "Referrer-Policy: no-referrer\r\n"
+                      "Cache-Control: no-store\r\n"
+                      "Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'\r\n"
                       "\r\n",
                       content_type, (long long)st.st_size);
 
@@ -226,7 +231,7 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
   snprintf(json + offset, cap - offset, "  ]\n}\n");
 
   send_response(client_fd, "200 OK", "application/json", json,
-                "Access-Control-Allow-Origin: *\r\n");
+                "Cache-Control: no-store\r\n");
   free(json);
 }
 
