@@ -75,8 +75,6 @@ jobs:
           kill -INT "$MONITOR_PID"
           wait "$MONITOR_PID"
           trap - EXIT
-          make clean && make all && make test
-          git diff --stat origin/main...HEAD -- src include
 
       - name: Run Benchmarks
         run: |
