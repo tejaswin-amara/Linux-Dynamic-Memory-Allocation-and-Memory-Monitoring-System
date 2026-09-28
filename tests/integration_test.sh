@@ -13,6 +13,33 @@ fi
 echo "[+] Testing LD_PRELOAD execution with stress allocation workload..."
 bash scripts/stress_test.sh > /dev/null
 echo "  [PASS] Stress workload executed successfully."
+cat > /tmp/allocator_api_test.c <<'EOF'
+#include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+int main(void) {
+    void *p = NULL;
+    if (posix_memalign(&p, 16, 128) != 0 || !p || ((uintptr_t)p % 16) != 0) return 1;
+    free(p);
+
+    p = aligned_alloc(16, 128);
+    if (!p || ((uintptr_t)p % 16) != 0) return 1;
+    free(p);
+
+    int *items = reallocarray(NULL, 16, sizeof(*items));
+    if (!items) return 1;
+    for (int i = 0; i < 16; ++i) items[i] = i;
+    free(items);
+
+    if (posix_memalign(&p, 3, 64) != EINVAL) return 1;
+    return 0;
+}
+EOF
+gcc -O2 -Wall -Wextra -Werror -std=c11 /tmp/allocator_api_test.c -o /tmp/allocator_api_test
+LD_PRELOAD=./libmyalloc.so /tmp/allocator_api_test
+rm -f /tmp/allocator_api_test /tmp/allocator_api_test.c
+echo "  [PASS] LD_PRELOAD aligned-allocation API smoke test."
 
 if [ -f "mem_monitor" ]; then
     echo "[+] Testing mem_monitor headless telemetry snapshot..."
