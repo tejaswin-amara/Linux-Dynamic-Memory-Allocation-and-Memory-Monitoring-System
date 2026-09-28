@@ -34,7 +34,7 @@ Security fixes and hardening patches are actively maintained for the following v
 | **File Descriptor Exhaustion** | Rapidly opening `/proc` files across thousands of PIDs exhausts system file limits. | Every unbuffered `open(2)` in `proc_parser.c` is guaranteed a matching `close(2)` on all success and error code paths. |
 | **Uncontrolled Process Termination** | Unauthorized callers dispatching `SIGKILL` or `SIGTERM` to critical OS processes (e.g., PID 1 / `systemd`). | `signal_handler.c` enforces boundary checks (`pid > 1`) and relies strictly on kernel-level POSIX credential validation (`kill(2)` errors with `EPERM` if calling process lacks capability). `/api/process/signal` requires a valid Bearer / X-Auth-Token. |
 | **Race Conditions in Telemetry Exchange** | HTTP worker thread reading telemetry snapshots while the monitoring thread updates process records. | Synchronization is enforced via a POSIX read-write lock (`pthread_rwlock_t`). Telemetry writes take exclusive writer locks; HTTP clients acquire shared reader locks. |
-| **Embedded HTTP Daemon Exploitation & CORS** | Cross-Origin Resource Sharing or unauthorized signal dispatch. | The HTTP daemon enforces constant-time Bearer / X-Auth-Token authentication, supports CORS header defaults on telemetry routes, and validates request paths cleanly without shell expansion or inline script rendering. |
+| **Embedded HTTP Daemon Exploitation & CORS** | Cross-Origin Resource Sharing or unauthorized signal dispatch. | Signal dispatch requires constant-time Bearer / X-Auth-Token authentication; telemetry is same-origin by default and the server does not emit wildcard CORS headers. Response hardening includes CSP, `nosniff`, `X-Frame-Options`, `Referrer-Policy`, and `no-store` headers. |
 
 ---
 
