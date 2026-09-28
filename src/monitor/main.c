@@ -109,8 +109,11 @@ int main(int argc, char **argv) {
   sa.sa_handler = sigint_handler;
   sigemptyset(&sa.sa_mask);
   sa.sa_flags = 0;
-  sigaction(SIGINT, &sa, NULL);
-  sigaction(SIGTERM, &sa, NULL);
+  if (sigaction(SIGINT, &sa, NULL) != 0 ||
+      sigaction(SIGTERM, &sa, NULL) != 0) {
+    LOG_ERRNO_ERROR("Failed to install signal handlers");
+    return 1;
+  }
 
   signal(SIGPIPE, SIG_IGN);
 
@@ -169,7 +172,12 @@ int main(int argc, char **argv) {
       sleep(1);
     }
   } else {
-    tui_init();
+    if (tui_init() != 0) {
+      LOG_ERROR("Failed to initialize ncurses TUI");
+      gui_server_stop(&server);
+      free(snapshot);
+      return 1;
+    }
     tui_state_t state = {.is_running = true,
                          .selected_index = 0,
                          .scroll_offset = 0,
