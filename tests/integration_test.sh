@@ -28,11 +28,14 @@ fi
 
 if [ -f "mem_monitor" ]; then
     echo "[+] Testing mem_monitor headless HTTP server end-to-end..."
-    ./mem_monitor --headless --port 9088 --token my-test-token > /dev/null &
+    PORT="$(shuf -i 20000-45000 -n 1)"
+    ./mem_monitor --headless --port "$PORT" --token my-test-token > /tmp/mem_monitor_integration.log 2>&1 &
     MON_PID=$!
+    trap 'kill -INT "$MON_PID" 2>/dev/null || true; wait "$MON_PID" 2>/dev/null || true; rm -f /tmp/mem_monitor_integration.log' EXIT
     sleep 1
 
-    METRICS=$(curl -s http://127.0.0.1:9088/api/metrics)
+    kill -0 "$MON_PID" 2>/dev/null
+    METRICS=$(curl -fsS "http://127.0.0.1:${PORT}/api/metrics")
     if echo "$METRICS" | grep -q "cpu" && echo "$METRICS" | grep -q "processes"; then
         echo "  [PASS] HTTP GET /api/metrics returned valid telemetry."
     else
@@ -41,7 +44,7 @@ if [ -f "mem_monitor" ]; then
         false
     fi
 
-    UNAUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:9088/api/process/signal -H "Content-Type: application/json" -d "{\"pid\": $$, \"signal\": \"0\"}")
+    UNAUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:${PORT}/api/process/signal -H "Content-Type: application/json" -d "{\"pid\": $$, \"signal\": \"0\"}")
     if [ "$UNAUTH_STATUS" -eq 401 ]; then
         echo "  [PASS] Unauthenticated signal POST rejected with 401."
     else
@@ -59,8 +62,10 @@ if [ -f "mem_monitor" ]; then
         false
     fi
 
-    kill -INT $MON_PID 2>/dev/null || true
-    wait $MON_PID 2>/dev/null || true
+    kill -INT "$MON_PID" 2>/dev/null || true
+    wait "$MON_PID" 2>/dev/null || true
+    trap - EXIT
+    rm -f /tmp/mem_monitor_integration.log
 fi
 
 echo "================================================================================"
