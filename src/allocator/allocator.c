@@ -312,9 +312,9 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
     fatal_abort("[FATAL] Heap corruption: Invalid block size in my_realloc\n");
   }
 
-  block_footer_t *footer = (block_footer_t *)((char *)header +
-                                              header->block_size -
-                                              sizeof(block_footer_t));
+  block_footer_t *footer =
+      (block_footer_t *)((char *)header + header->block_size -
+                         sizeof(block_footer_t));
   if (footer->magic_footer != ALLOC_MAGIC_FOOTER ||
       footer->block_size != header->block_size) {
     pthread_mutex_unlock(&alloc_mutex);
@@ -351,7 +351,6 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
       return (void *)((char *)new_header + sizeof(block_header_t));
     }
 #endif
-
     pthread_mutex_unlock(&alloc_mutex);
 
     void *new_ptr = my_malloc(size);
@@ -416,4 +415,3 @@ ALLOC_API void *my_realloc(void *ptr, size_t size) {
 
   return new_ptr;
 }
-
