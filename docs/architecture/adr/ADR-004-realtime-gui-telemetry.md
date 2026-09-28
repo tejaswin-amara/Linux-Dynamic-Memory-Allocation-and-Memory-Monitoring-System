@@ -57,14 +57,14 @@ The monitoring loop and HTTP workers communicate via a shared `system_snapshot_t
 - **Writer (Monitor Loop)**: Acquires an exclusive write lock (`pthread_rwlock_wrlock`) during the microsecond memory copy of fresh telemetry via `gui_server_update_snapshot`.
 - **Readers (HTTP Workers)**: Acquire shared read locks (`pthread_rwlock_rdlock`) in `serve_metrics_json` during JSON serialization into dynamically allocated heap memory. Multiple readers can serialize concurrently, but they can delay the monitor's exclusive snapshot update while the read lock is held during serialization.
 
-### 6. REST API Contract, CORS & Static Assets
+### 6. REST API Contract, Same-Origin Policy & Static Assets
 - **Static Assets**:
   - `GET /` or `GET /index.html` $\rightarrow$ Serves `web/index.html` (`text/html`).
   - `GET /style.css` $\\rightarrow$ Serves `web/style.css` (`text/css`).
   - `GET /app.js` $\\rightarrow$ Serves `web/app.js` (`application/javascript`).
-- **Telemetry Stream & CORS Policy**:
+- **Telemetry Stream Policy**:
   - `GET /api/metrics` $\\rightarrow$ Serializes snapshot into an HTTP/1.1 200 OK JSON response containing CPU%, per-core count, memory capacity and utilization, and process array.
-  - **CORS Scope**: `Access-Control-Allow-Origin: *` is attached **exclusively to `/api/metrics`** to enable browser cross-origin telemetry polling. It is omitted from `/api/process/signal`; token validation remains the authorization control for signal requests.
+  - **Same-Origin Scope**: The bundled dashboard consumes `/api/metrics` from the same origin. The server does not emit wildcard CORS headers, so cross-origin telemetry access is not enabled by default.
 - **Signal Control**:
   - `POST /api/process/signal` $\\rightarrow$ Authenticates token, parses JSON payload `{"pid": <PID>, "signal": "<NAME>"}`, enforces PID bounds ($1 < 	ext{PID} le 4194304$), resolves signal name via `signal_parse_name()`, and dispatches signal via `signal_send_to_process()`.
 
@@ -79,7 +79,7 @@ The web client is built with standard vanilla web technologies:
 ### Positive
 - **Single Standalone Executable**: The entire task manager (engine, TUI, and Web GUI) builds into one compact binary (`mem_monitor`).
 - **Measured Resident Footprint**: The same GCC CI measurement recorded **VmRSS 4056 kB** (~3.96 MiB) total resident memory, with **RssAnon 1796 kB** (~1.75 MiB) anonymous resident memory and **RssFile 2260 kB** (~2.21 MiB) file-backed resident memory. These are measured resident-set figures, not a sustained upper bound or a worst-case concurrent-request ceiling.
-- **Robust Security Perimeter**: Local binding by default, constant-time token authentication on process signaling, and CORS headers restricted strictly to read-only metrics.
+- **Robust Security Perimeter**: Local binding by default, constant-time token authentication on process signaling, no wildcard CORS headers, and hardened browser response headers.
 - **High Concurrency & Stability**: Per-connection detached threads bounded by `MAX_CLIENT_WORKERS` with socket timeouts and `SIGPIPE` immunity.
 
 ### Negative
