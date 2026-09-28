@@ -2,6 +2,11 @@
 
 let selectedPid = null;
 let currentProcesses = [];
+let apiToken = '';
+
+if (typeof sessionStorage !== 'undefined') {
+    apiToken = sessionStorage.getItem('memMonitorApiToken') || '';
+}
 
 async function fetchMetrics() {
     try {
@@ -133,10 +138,17 @@ function closeModal() {
 
 async function sendSignal(sigName) {
     if (!selectedPid) return;
+    if (!apiToken) {
+        alert('Enter the API token above before sending a process signal.');
+        return;
+    }
     try {
         const res = await fetch('/api/process/signal', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Auth-Token': apiToken
+            },
             body: JSON.stringify({ pid: selectedPid, signal: sigName })
         });
         const result = await res.json();
@@ -167,6 +179,17 @@ if (typeof document !== 'undefined') {
 
     const refreshElem = document.getElementById('refresh-btn');
     if (refreshElem) refreshElem.addEventListener('click', fetchMetrics);
+
+    const tokenElem = document.getElementById('api-token');
+    if (tokenElem) {
+        tokenElem.value = apiToken;
+        tokenElem.addEventListener('change', () => {
+            apiToken = tokenElem.value.trim();
+            if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem('memMonitorApiToken', apiToken);
+            }
+        });
+    }
 
     // Initial start & polling loop
     fetchMetrics();
