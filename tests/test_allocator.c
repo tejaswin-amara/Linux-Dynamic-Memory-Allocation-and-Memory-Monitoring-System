@@ -171,6 +171,19 @@ void test_integrity_rejects_invalid_block_size(void) {
   my_free(ptr);
 }
 
+void test_integrity_rejects_free_list_link_corruption(void) {
+  void *ptr = my_malloc(64);
+  TEST_ASSERT_NOT_NULL(ptr);
+  my_free(ptr);
+
+  block_header_t *block =
+      (block_header_t *)((char *)ptr - sizeof(block_header_t));
+  block_header_t fake_next = {0};
+  block->next = &fake_next;
+  TEST_ASSERT_EQUAL_INT(-1, allocator_verify_integrity());
+  block->next = NULL;
+}
+
 void test_free_list_link_corruption_abort(void) {
   pid_t pid = fork();
   if (pid == 0) {
@@ -228,6 +241,7 @@ int main(void) {
   RUN_TEST(test_allocator_multithreaded_stress);
   RUN_TEST(test_allocator_destroy_reset);
   RUN_TEST(test_integrity_rejects_invalid_block_size);
+  RUN_TEST(test_integrity_rejects_free_list_link_corruption);
   RUN_TEST(test_free_list_link_corruption_abort);
   RUN_TEST(test_coalescing);
   return UnityEnd();
