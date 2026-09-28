@@ -146,18 +146,25 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
       "  \"truncated\": %s,\n"
       "  \"cpu\": {\"total_usage_pct\": %.2f, \"user_pct\": %.2f, "
       "\"system_pct\": %.2f, \"idle_pct\": %.2f, \"core_count\": %d},\n"
-      "  \"mem\": {\"total_mb\": %lu, \"used_mb\": %lu, \"free_mb\": %lu, "
-      "\"usage_pct\": %.2f},\n"
+      "  \"mem\": {\"mem_total_kb\": %lu, \"mem_available_kb\": %lu, "
+      "\"mem_free_kb\": %lu, \"buffers_kb\": %lu, \"cached_kb\": %lu, "
+      "\"mem_usage_pct\": %.2f, \"swap_total_kb\": %lu, \"swap_free_kb\": %lu, "
+      "\"swap_usage_pct\": %.2f},\n"
       "  \"processes\": [\n",
       (long)(snap ? snap->timestamp : 0),
       (snap && snap->truncated) ? "true" : "false",
       snap ? snap->cpu.total_usage_pct : 0.0f, snap ? snap->cpu.user_pct : 0.0f,
       snap ? snap->cpu.system_pct : 0.0f, snap ? snap->cpu.idle_pct : 0.0f,
       snap ? snap->cpu.core_count : 0,
-      snap ? snap->mem.mem_total_kb / 1024 : 0UL,
-      snap ? (snap->mem.mem_total_kb - snap->mem.mem_available_kb) / 1024 : 0UL,
-      snap ? snap->mem.mem_available_kb / 1024 : 0UL,
-      snap ? snap->mem.mem_usage_pct : 0.0f);
+      snap ? snap->mem.mem_total_kb : 0UL,
+      snap ? snap->mem.mem_available_kb : 0UL,
+      snap ? snap->mem.mem_free_kb : 0UL,
+      snap ? snap->mem.buffers_kb : 0UL,
+      snap ? snap->mem.cached_kb : 0UL,
+      snap ? snap->mem.mem_usage_pct : 0.0f,
+      snap ? snap->mem.swap_total_kb : 0UL,
+      snap ? snap->mem.swap_free_kb : 0UL,
+      snap ? snap->mem.swap_usage_pct : 0.0f);
 
   if (w > 0)
     offset += (size_t)w;
