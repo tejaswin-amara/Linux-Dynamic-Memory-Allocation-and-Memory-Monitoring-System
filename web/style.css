@@ -140,6 +140,10 @@ body {
     font-size: 13px;
 }
 
+.token-input {
+    width: 180px;
+}
+
 .proc-table {
     width: 100%;
     border-collapse: collapse;
