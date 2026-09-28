@@ -108,8 +108,8 @@ Within the starting class, the allocator searches for the smallest adequate free
 
 Allocation policy:
 
-- **Below 128 KiB:** search the segregated free lists; request more heap space with `sbrk(2)` only when no suitable free block exists.
-- **128 KiB and above:** allocate directly with anonymous `mmap(2)`.
+- **When the total block size is below 128 KiB:** search the segregated free lists; request more heap space with `sbrk(2)` only when no suitable free block exists.
+- **When the total block size is 128 KiB or larger:** allocate directly with anonymous `mmap(2)`.
 - **Freeing heap blocks:** validate boundary markers, mark the block free, coalesce with adjacent free blocks when possible, then reinsert the merged block.
 - **Freeing mapped blocks:** release the mapping with `munmap(2)`.
 
