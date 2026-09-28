@@ -180,27 +180,36 @@ ALLOC_API void my_free(void *ptr) {
   if (!ptr)
     return;
 
+  pthread_mutex_lock(&alloc_mutex);
+
   block_header_t *header =
       (block_header_t *)((char *)ptr - sizeof(block_header_t));
 
   if (header->magic_header != ALLOC_MAGIC_HEADER) {
+    pthread_mutex_unlock(&alloc_mutex);
     fatal_abort(
         "[FATAL] Heap corruption: Invalid magic header canary in my_free\n");
   }
 
-  block_footer_t *footer =
-      (block_footer_t *)((char *)header + header->block_size -
-                         sizeof(block_footer_t));
-  if (footer->magic_footer != ALLOC_MAGIC_FOOTER) {
+  if (header->block_size < sizeof(block_header_t) + sizeof(block_footer_t)) {
+    pthread_mutex_unlock(&alloc_mutex);
+    fatal_abort("[FATAL] Heap corruption: Invalid block size in my_free\n");
+  }
+
+  block_footer_t *footer = (block_footer_t *)((char *)header +
+                                              header->block_size -
+                                              sizeof(block_footer_t));
+  if (footer->magic_footer != ALLOC_MAGIC_FOOTER ||
+      footer->block_size != header->block_size) {
+    pthread_mutex_unlock(&alloc_mutex);
     fatal_abort(
         "[FATAL] Heap corruption: Invalid magic footer canary in my_free\n");
   }
 
   if (header->is_free) {
+    pthread_mutex_unlock(&alloc_mutex);
     fatal_abort("[FATAL] Double free or use after free detected in my_free\n");
   }
-
-  pthread_mutex_lock(&alloc_mutex);
 
   if (header->is_mmap) {
     global_stats.total_freed += header->requested_size;
@@ -227,6 +236,7 @@ ALLOC_API void my_free(void *ptr) {
     block_footer_t *new_footer =
         (block_footer_t *)((char *)header + header->block_size -
                            sizeof(block_footer_t));
+    new_footer->magic_footer = ALLOC_MAGIC_FOOTER;
     new_footer->block_size = header->block_size;
   }
 
@@ -243,6 +253,7 @@ ALLOC_API void my_free(void *ptr) {
         block_footer_t *new_footer =
             (block_footer_t *)((char *)prev_header + prev_header->block_size -
                                sizeof(block_footer_t));
+        new_footer->magic_footer = ALLOC_MAGIC_FOOTER;
         new_footer->block_size = prev_header->block_size;
         header = prev_header;
       }
