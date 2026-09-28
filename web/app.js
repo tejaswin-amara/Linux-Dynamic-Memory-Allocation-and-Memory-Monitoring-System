@@ -78,7 +78,7 @@ function renderProcessTable() {
         countElem.innerText = filtered.length;
     }
 
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
     filtered.slice(0, 100).forEach(p => {
         const tr = document.createElement('tr');
 
