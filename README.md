@@ -11,7 +11,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Curriculum](https://img.shields.io/badge/Capstone-KLEF%2025CS2104E-red.svg)](#1-curriculum-traceability-matrix-25cs2104e)
 
-**A production-grade, dual-pillar Linux systems engineering software suite combining a custom segregated-fit dynamic memory allocator with a non-invasive, zero-allocation Linux kernel VFS process monitoring daemon.**
+**A low-level Linux systems engineering project combining a custom dynamic memory allocator with a real-time process telemetry and task-management engine.**
 
 [Key Features](#key-features) • [Visual Previews](#visual-previews) • [Curriculum Matrix](#1-curriculum-traceability-matrix-25cs2104e) • [Architecture](#2-system-architecture) • [Core Modules](#3-core-modules-deep-dive) • [Quickstart](#4-quickstart--execution-guide) • [Benchmarks](#6-verification-benchmarking--stress-testing) • [ADRs & Docs](#8-documentation--architecture-decision-records)
 
@@ -21,7 +21,7 @@
 
 ## Overview
 
-Developed as a Systems Software Capstone for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**, this repository unifies two fundamental operating systems engineering challenges into a single cohesive, high-performance C suite:
+Built for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**, this repository brings two OS-level engineering problems together in one C11/POSIX codebase:
 
 1. **Custom Dynamic Memory Allocator (`libmyalloc.so`)**: A drop-in POSIX `malloc`/`free`/`calloc`/`realloc` replacement library. Employs 8-bin segregated free lists, best-fit bin search, 16-byte payload alignment, boundary-tag canaries (`0xDEADBEEF` / `0xBEEFDEAD`) for buffer overrun / double-free detection, $O(1)$ bidirectional block coalescing, and a hybrid threshold strategy switching between `sbrk(2)` (< 128 KB) and anonymous `mmap(2)` (≥ 128 KB). Intercepts external Linux binaries via `LD_PRELOAD`.
 2. **Virtual File System Process Monitor (`mem_monitor`)**: A high-efficiency system monitoring engine that directly samples kernel statistics from `/proc` using raw, unbuffered POSIX system calls (`open`, `read`, `close`) without invoking any dynamic heap allocations in its sampling loop. Features a dual-interface presentation layer:
@@ -36,9 +36,9 @@ Developed as a Systems Software Capstone for **KLEF 25CS2104E: Outside-In Operat
 - **Canary-Guarded Boundary Tags**: 32-bit header canary (`0xDEADBEEF`) and 32-bit footer canary (`0xBEEFDEAD`) provide instant crash diagnostics on heap corruption.
 - **Zero-Allocation Sampling Engine**: Telemetry reads consume zero heap allocations in steady state; reads are dispatched into pre-allocated stack buffers to guarantee non-invasive profiling.
 - **Microsecond Differential CPU Calculation**: Accurately computes true multi-core differential CPU utilization against system jiffies delta.
-- **Dual Interface Concurrency**: The ncurses TUI and embedded HTTP server concurrently access telemetry snapshots guarded by a thread-safe read-write lock (`pthread_rwlock_t`).
+- **Dual Interface Concurrency**: The ncurses TUI and embedded HTTP server share telemetry snapshots protected by a thread-safe read-write lock (`pthread_rwlock_t`).
 - **Interactive Signal Control**: Send POSIX signals (`SIGSTOP`, `SIGCONT`, `SIGTERM`, `SIGKILL`) directly from the terminal keyboard or the Web GUI buttons.
-- **Memory Safety Hardened**: Tested with AddressSanitizer (ASan), UndefinedBehaviorSanitizer (UBSan), Valgrind Memcheck (zero leaks), and Unity unit tests.
+- **Verification-first**: CI exercises formatting, strict C11 builds, unit/integration tests, ASan/UBSan, Valgrind, the real allocator soak, closure checks, and benchmarks.
 
 ---
 
@@ -67,7 +67,7 @@ The `ncurses` dashboard renders global CPU utilization per core, physical RAM an
 └────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Embedded Real-Time Web GUI (`http://localhost:8080`)
+### 2. Embedded Real-Time Web GUI (`http://127.0.0.1:8080`)
 A responsive dark-mode web console served directly by `mem_monitor`'s embedded C HTTP daemon:
 
 ```
@@ -499,7 +499,7 @@ bash scripts/stress_test.sh
 
 ---
 
-## 7. Directory Layout
+\n### Real allocator soak vs. Valgrind\n\n`make valgrind` and `make soak` intentionally test different properties. Valgrind Memcheck replaces the process allocator, so it is not evidence that `libmyalloc.so` is active. The self-hosted soak starts:\n\n```bash\nLD_PRELOAD=./libmyalloc.so ./mem_monitor --headless --port <free-port> --token <token>\n```\n\nand verifies the library is present in `/proc/<pid>/maps`, sustains 8 parallel telemetry GETs plus authenticated `signal: "0"` POSTs, enforces a 2× RSS ceiling, rejects fatal logs, and requires clean SIGINT shutdown.\n\n## 7. Directory Layout
 
 ```
 .
@@ -584,9 +584,9 @@ Detailed engineering specifications and operational runbooks are cataloged under
 
 ---
 
-## 9. Contributing & Standards
+## 9. Engineering Workflow
 
-Contributions are welcome! Please follow these standards before submitting a pull request:
+The repository follows a verification-first workflow. Before submitting a pull request:
 1. **Code Formatting**: Verify formatting with `clang-format`:
    ```bash
    clang-format --dry-run --Werror src/**/*.c include/*.h tests/*.c
