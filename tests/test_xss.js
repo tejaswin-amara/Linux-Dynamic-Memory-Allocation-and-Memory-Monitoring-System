@@ -12,13 +12,14 @@ function createMockElement(tagName) {
         className: '',
         children,
         appendChild(child) { children.push(child); },
+        replaceChildren() { children.length = 0; },
         addEventListener(event, fn) { listeners[event] = fn; },
         listeners
     };
 }
 
 const tbody = createMockElement('tbody');
-tbody.innerHTML = '';
+tbody.replaceChildren();
 
 const countElem = createMockElement('span');
 
