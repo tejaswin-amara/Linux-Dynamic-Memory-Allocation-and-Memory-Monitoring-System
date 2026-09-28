@@ -475,12 +475,21 @@ int gui_server_init(gui_server_t *server, const char *host, int port,
   server->is_running = false;
   server->active_workers = 0;
 
-  pthread_mutex_init(&server->worker_mutex, NULL);
-  pthread_cond_init(&server->worker_cond, NULL);
+  if (pthread_mutex_init(&server->worker_mutex, NULL) != 0) {
+    LOG_ERROR("Failed to init worker mutex");
+    return -1;
+  }
+  if (pthread_cond_init(&server->worker_cond, NULL) != 0) {
+    LOG_ERROR("Failed to init worker condition variable");
+    pthread_mutex_destroy(&server->worker_mutex);
+    return -1;
+  }
 
   server->latest_snapshot = malloc(sizeof(system_snapshot_t));
   if (!server->latest_snapshot) {
     LOG_ERROR("Failed to allocate snapshot for GUI server");
+    pthread_cond_destroy(&server->worker_cond);
+    pthread_mutex_destroy(&server->worker_mutex);
     return -1;
   }
   memset(server->latest_snapshot, 0, sizeof(system_snapshot_t));
@@ -488,6 +497,9 @@ int gui_server_init(gui_server_t *server, const char *host, int port,
   if (pthread_rwlock_init(&server->snapshot_lock, NULL) != 0) {
     LOG_ERROR("Failed to init snapshot rwlock");
     free(server->latest_snapshot);
+    server->latest_snapshot = NULL;
+    pthread_cond_destroy(&server->worker_cond);
+    pthread_mutex_destroy(&server->worker_mutex);
     return -1;
   }
 
