@@ -170,16 +170,27 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
       snap ? snap->mem.swap_free_kb : 0UL,
       snap ? snap->mem.swap_usage_pct : 0.0f);
 
-  if (w > 0)
-    offset += (size_t)w;
+  if (w < 0 || (size_t)w >= cap) {
+    pthread_rwlock_unlock(&server->snapshot_lock);
+    free(json);
+    send_response(client_fd, "500 Internal Server Error", "text/plain",
+                  "Unable to serialize metrics", NULL);
+    return;
+  }
+  offset += (size_t)w;
 
   int count = snap ? snap->count : 0;
   for (int i = 0; i < count; ++i) {
     if (offset + 1024 > cap) {
       size_t new_cap = cap * 2;
       char *new_json = realloc(json, new_cap);
-      if (!new_json)
-        break;
+      if (!new_json) {
+        pthread_rwlock_unlock(&server->snapshot_lock);
+        free(json);
+        send_response(client_fd, "500 Internal Server Error", "text/plain",
+                      "Unable to serialize metrics", NULL);
+        return;
+      }
       json = new_json;
       cap = new_cap;
     }
@@ -194,20 +205,25 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
         "\"cpu_pct\": %.2f, \"mem_rss_kb\": %lu, \"threads\": %ld}%s\n",
         p->pid, escaped_comm, p->state, p->cpu_usage_pct, p->vm_rss_kb,
         p->num_threads, (i == count - 1) ? "" : ",");
-    if (w > 0) {
-      if (offset + (size_t)w < cap) {
-        offset += (size_t)w;
-      } else {
-        offset = cap - 1;
-      }
+    if (w < 0 || (size_t)w >= cap - offset) {
+      pthread_rwlock_unlock(&server->snapshot_lock);
+      free(json);
+      send_response(client_fd, "500 Internal Server Error", "text/plain",
+                    "Unable to serialize metrics", NULL);
+      return;
     }
+    offset += (size_t)w;
   }
 
   pthread_rwlock_unlock(&server->snapshot_lock);
 
-  if (offset + 32 <= cap) {
-    snprintf(json + offset, cap - offset, "  ]\n}\n");
+  if (offset + 32 > cap) {
+    free(json);
+    send_response(client_fd, "500 Internal Server Error", "text/plain",
+                  "Unable to serialize metrics", NULL);
+    return;
   }
+  snprintf(json + offset, cap - offset, "  ]\n}\n");
 
   send_response(client_fd, "200 OK", "application/json", json,
                 "Access-Control-Allow-Origin: *\r\n");
