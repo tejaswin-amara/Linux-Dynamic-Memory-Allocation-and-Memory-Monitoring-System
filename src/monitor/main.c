@@ -11,7 +11,7 @@ static void sigint_handler(int sig) {
   g_running = 0;
 }
 
-static void generate_random_token(char *out, size_t len) {
+static bool generate_random_token(char *out, size_t len) {
   static const char hex_chars[] = "0123456789abcdef";
   int fd = open("/dev/urandom", O_RDONLY);
   if (fd >= 0) {
@@ -25,10 +25,11 @@ static void generate_random_token(char *out, size_t len) {
         out[pos++] = hex_chars[bytes[i] & 0x0F];
       }
       out[pos] = '\0';
-      return;
+      return true;
     }
   }
-  snprintf(out, len, "token-%ld", (long)time(NULL));
+  out[0] = '\0';
+  return false;
 }
 
 int main(int argc, char **argv) {
@@ -67,9 +68,11 @@ int main(int argc, char **argv) {
   }
 
   if (!token_provided || strlen(auth_token) == 0) {
-    generate_random_token(auth_token, sizeof(auth_token));
-    LOG_INFO("Generated auth token: %s (use --token to set your own)",
-             auth_token);
+    if (!generate_random_token(auth_token, sizeof(auth_token))) {
+      LOG_ERROR("Unable to obtain cryptographically secure randomness for the HTTP auth token");
+      return 1;
+    }
+    LOG_INFO("Generated auth token: %s (use --token to set your own)", auth_token);
   }
 
   struct sigaction sa;
