@@ -59,7 +59,7 @@ The monitoring loop and HTTP workers communicate via a shared `system_snapshot_t
 
 ### 6. REST API Contract, CORS & Static Assets
 - **Static Assets**:
-  - `GET /` or `GET /index.html` $ightarrow$ Serves `web/index.html` (`text/html`).
+  - `GET /` or `GET /index.html` $\rightarrow$ Serves `web/index.html` (`text/html`).
   - `GET /style.css` $ightarrow$ Serves `web/style.css` (`text/css`).
   - `GET /app.js` $ightarrow$ Serves `web/app.js` (`application/javascript`).
 - **Telemetry Stream & CORS Policy**:
