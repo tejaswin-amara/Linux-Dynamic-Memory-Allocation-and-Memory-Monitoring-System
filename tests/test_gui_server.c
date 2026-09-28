@@ -102,47 +102,44 @@ void test_gui_server_routes_and_auth(void) {
   TEST_ASSERT_NOT_NULL(strstr(resp, "200 OK"));
 
   /* 4. Bearer token auth */
-  res = http_request(
-      "127.0.0.1", port,
-      "POST /api/process/signal HTTP/1.1\r\n"
-      "Host: localhost\r\n"
-      "Authorization: Bearer test-secret-token\r\n"
-      "Content-Type: application/json\r\n"
-      "Content-Length: 26\r\n"
-      "Connection: close\r\n"
-      "\r\n"
-      "{\"pid\": 99999, \"signal\": \"0\"}",
-      resp, sizeof(resp));
+  res = http_request("127.0.0.1", port,
+                     "POST /api/process/signal HTTP/1.1\r\n"
+                     "Host: localhost\r\n"
+                     "Authorization: Bearer test-secret-token\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: 26\r\n"
+                     "Connection: close\r\n"
+                     "\r\n"
+                     "{\"pid\": 99999, \"signal\": \"0\"}",
+                     resp, sizeof(resp));
   TEST_ASSERT_EQUAL_INT(0, res);
   TEST_ASSERT_NOT_NULL(strstr(resp, "500 Internal Server Error"));
 
   /* 5. Invalid signal */
-  res = http_request(
-      "127.0.0.1", port,
-      "POST /api/process/signal HTTP/1.1\r\n"
-      "Host: localhost\r\n"
-      "X-Auth-Token: test-secret-token\r\n"
-      "Content-Type: application/json\r\n"
-      "Content-Length: 34\r\n"
-      "Connection: close\r\n"
-      "\r\n"
-      "{\"pid\": 99999, \"signal\": \"BOGUS\"}",
-      resp, sizeof(resp));
+  res = http_request("127.0.0.1", port,
+                     "POST /api/process/signal HTTP/1.1\r\n"
+                     "Host: localhost\r\n"
+                     "X-Auth-Token: test-secret-token\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: 34\r\n"
+                     "Connection: close\r\n"
+                     "\r\n"
+                     "{\"pid\": 99999, \"signal\": \"BOGUS\"}",
+                     resp, sizeof(resp));
   TEST_ASSERT_EQUAL_INT(0, res);
   TEST_ASSERT_NOT_NULL(strstr(resp, "400 Bad Request"));
 
   /* 6. Missing PID */
-  res = http_request(
-      "127.0.0.1", port,
-      "POST /api/process/signal HTTP/1.1\r\n"
-      "Host: localhost\r\n"
-      "X-Auth-Token: test-secret-token\r\n"
-      "Content-Type: application/json\r\n"
-      "Content-Length: 17\r\n"
-      "Connection: close\r\n"
-      "\r\n"
-      "{\"signal\": \"0\"}",
-      resp, sizeof(resp));
+  res = http_request("127.0.0.1", port,
+                     "POST /api/process/signal HTTP/1.1\r\n"
+                     "Host: localhost\r\n"
+                     "X-Auth-Token: test-secret-token\r\n"
+                     "Content-Type: application/json\r\n"
+                     "Content-Length: 17\r\n"
+                     "Connection: close\r\n"
+                     "\r\n"
+                     "{\"signal\": \"0\"}",
+                     resp, sizeof(resp));
   TEST_ASSERT_EQUAL_INT(0, res);
   TEST_ASSERT_NOT_NULL(strstr(resp, "400 Bad Request"));
 
