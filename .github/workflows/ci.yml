@@ -1,4 +1,4 @@
-﻿name: Systems CI Pipeline
+name: Systems CI Pipeline
 
 on:
   push:
@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies
         run: |
@@ -50,6 +52,19 @@ jobs:
           make clean
           CC=${{ matrix.compiler }} make all
           make valgrind
+
+      - name: Measure mem_monitor RSS
+        run: |
+          set -euo pipefail
+          ./mem_monitor --headless --port 9111 --token x &
+          MONITOR_PID=$!
+          trap 'kill -INT "$MONITOR_PID" 2>/dev/null || true; wait "$MONITOR_PID" 2>/dev/null || true' EXIT
+          sleep 3
+          curl -s -o /dev/null http://127.0.0.1:9111/api/metrics
+          grep -E "VmRSS|RssAnon|RssFile" /proc/$MONITOR_PID/status
+          kill -INT "$MONITOR_PID"
+          wait "$MONITOR_PID"
+          trap - EXIT
 
       - name: Run Benchmarks
         run: |
