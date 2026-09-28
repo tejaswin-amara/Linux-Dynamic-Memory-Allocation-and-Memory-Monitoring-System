@@ -1,0 +1,21 @@
+name: Temporary Format Extraction
+
+on:
+  push:
+    branches: [ ci-format-extraction-20260928 ]
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+      - name: Format and print diff
+        run: |
+          set -euo pipefail
+          clang-format -i src/**/*.c include/*.h tests/*.c
+          git diff --unified=3 -- src/allocator/free_list.c src/monitor/gui_server.c src/monitor/main.c tests/test_gui_server.c
