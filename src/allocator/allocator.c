@@ -52,7 +52,7 @@ ALLOC_API int allocator_verify_integrity(void) {
       block_header_t *hdr = (block_header_t *)curr;
       if (hdr->magic_header != ALLOC_MAGIC_HEADER ||
           hdr->block_size < sizeof(block_header_t) + sizeof(block_footer_t) ||
-          (size_t)(heap_end - curr) < hdr->block_size) {
+          (size_t)((char *)heap_end - curr) < hdr->block_size) {
         pthread_mutex_unlock(&alloc_mutex);
         return -1;
       }
