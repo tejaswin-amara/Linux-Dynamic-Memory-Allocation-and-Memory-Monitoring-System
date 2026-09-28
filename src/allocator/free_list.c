@@ -1,8 +1,3 @@
-static void fatal_abort(const char *msg) {
-  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
-  (void)ret;
-  abort();
-}
 #include "allocator.h"
 #include "free_list_internal.h"
 #include <unistd.h>
@@ -52,8 +47,7 @@ void free_list_remove(block_header_t *block) {
   if (!block)
     return;
   if (block->block_size < sizeof(block_header_t) + sizeof(block_footer_t)) {
-    fatal_abort(
-        "[FATAL] Invalid block size while unlinking free-list block\n");
+    fatal_abort("[FATAL] Invalid block size while unlinking free-list block\n");
   }
   if (!block->is_free) {
     fatal_abort("[FATAL] Attempt to unlink an allocated block\n");
@@ -130,10 +124,8 @@ int free_list_verify_integrity(void) {
   for (int i = 0; i < NUM_SIZE_CLASSES; ++i) {
     block_header_t *curr = segregated_heads[i];
     while (curr) {
-      if (curr->magic_header != ALLOC_MAGIC_HEADER ||
-          !curr->is_free ||
-          curr->block_size <
-              sizeof(block_header_t) + sizeof(block_footer_t)) {
+      if (curr->magic_header != ALLOC_MAGIC_HEADER || !curr->is_free ||
+          curr->block_size < sizeof(block_header_t) + sizeof(block_footer_t)) {
         return -1;
       }
       if ((curr->prev == NULL && segregated_heads[i] != curr) ||
