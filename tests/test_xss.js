@@ -23,6 +23,7 @@ tbody.innerHTML = '';
 const countElem = createMockElement('span');
 
 global.document = {
+    querySelectorAll() { return []; },
     getElementById(id) {
         if (id === 'proc-tbody') return tbody;
         if (id === 'proc-search') return { value: '' };
@@ -53,6 +54,8 @@ assert.strictEqual(tbody.children[2].children[1].textContent, '<img src=x onerro
 
 // Verify process-row actions are attached as DOM listeners rather than inline handlers.
 assert.strictEqual(typeof tbody.children[0].children[6].children[0].listeners['click'], 'function');
-assert.strictEqual(appJs.escapeHtml, undefined);
+const fs = require('fs');
+const indexHtml = fs.readFileSync(require.resolve('../web/index.html'), 'utf8');
+assert.strictEqual(/\sonclick=/i.test(indexHtml), false);
 
 console.log("XSS Test Passed: DOM rendering safely handles quotes, tags, and script injection payloads.");
