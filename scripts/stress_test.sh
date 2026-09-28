@@ -54,7 +54,7 @@ EOF
 gcc -O2 -pthread /tmp/stress_runner.c -o /tmp/stress_runner
 
 echo "Running concurrency stress test with libmyalloc.so..."
-LD_PRELOAD=./libmyalloc.so /tmp/stress_runner || echo "[Stress test passed]"
+LD_PRELOAD=./libmyalloc.so /tmp/stress_runner
 
 rm -f /tmp/stress_runner /tmp/stress_runner.c
 
@@ -125,7 +125,7 @@ EOF
 gcc -O2 -pthread /tmp/frag_stress_runner.c -o /tmp/frag_stress_runner
 
 echo "Running fragmentation stress test with libmyalloc.so..."
-LD_PRELOAD=./libmyalloc.so /tmp/frag_stress_runner || echo "[Fragmentation stress test passed]"
+LD_PRELOAD=./libmyalloc.so /tmp/frag_stress_runner
 
 rm -f /tmp/frag_stress_runner /tmp/frag_stress_runner.c
 echo "================================================================================"
