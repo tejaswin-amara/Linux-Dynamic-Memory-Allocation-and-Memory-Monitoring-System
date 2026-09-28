@@ -160,16 +160,6 @@ async function sendSignal(sigName) {
     }
 }
 
-function escapeHtml(str) {
-    if (typeof str !== 'string') return str;
-    return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
-
 if (typeof document !== 'undefined') {
     const searchElem = document.getElementById('proc-search');
     if (searchElem) searchElem.addEventListener('input', renderProcessTable);
@@ -179,6 +169,13 @@ if (typeof document !== 'undefined') {
 
     const refreshElem = document.getElementById('refresh-btn');
     if (refreshElem) refreshElem.addEventListener('click', fetchMetrics);
+
+    document.querySelectorAll('.signal-btn').forEach((button) => {
+        button.addEventListener('click', () => sendSignal(button.dataset.signal));
+    });
+
+    const closeModalElem = document.getElementById('close-modal-btn');
+    if (closeModalElem) closeModalElem.addEventListener('click', closeModal);
 
     const tokenElem = document.getElementById('api-token');
     if (tokenElem) {
