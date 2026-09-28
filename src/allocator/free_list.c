@@ -8,7 +8,6 @@ static void fatal_abort(const char *msg) {
   abort();
 }
 
-
 static const size_t size_class_limits[NUM_SIZE_CLASSES] = {
     128, 256, 512, 1024, 2048, 4096, 8192, MMAP_THRESHOLD};
 
