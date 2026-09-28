@@ -163,7 +163,7 @@ void tui_render(system_snapshot_t *snapshot, tui_state_t *state) {
   attron(COLOR_PAIR(1));
   mvprintw(
       rows - 1, 2,
-      "[k] Kill  [s] Stop  [c] Cont  [p] Sort CPU  [m] Sort MEM  [q] Quit");
+      "[j/k] Navigate  [K] Kill  [s] Stop  [c] Cont  [p] Sort CPU  [m] Sort MEM  [q] Quit");
   attroff(COLOR_PAIR(1));
 
   refresh();
