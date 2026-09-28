@@ -1,12 +1,7 @@
 const assert = require('assert');
 const appJs = require('../web/app.js');
 
-// 1. Test escapeHtml directly
-assert.strictEqual(appJs.escapeHtml('x" onmouseover="alert(1)'), 'x&quot; onmouseover=&quot;alert(1)');
-assert.strictEqual(appJs.escapeHtml("x');alert(1);//"), 'x&#39;);alert(1);//');
-assert.strictEqual(appJs.escapeHtml('<script>alert("XSS")</script>'), '&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;');
-
-// 2. Test DOM building logic using a minimal DOM mock
+// Test DOM building logic using a minimal DOM mock
 function createMockElement(tagName) {
     const children = [];
     const listeners = {};
@@ -56,7 +51,8 @@ assert.strictEqual(tbody.children[0].children[1].textContent, 'x" onmouseover="a
 assert.strictEqual(tbody.children[1].children[1].textContent, "x');alert(1);//");
 assert.strictEqual(tbody.children[2].children[1].textContent, '<img src=x onerror=alert(1)>');
 
-// Verify buttons have event listeners attached safely, no inline onclick strings
+// Verify process-row actions are attached as DOM listeners rather than inline handlers.
 assert.strictEqual(typeof tbody.children[0].children[6].children[0].listeners['click'], 'function');
+assert.strictEqual(appJs.escapeHtml, undefined);
 
 console.log("XSS Test Passed: DOM rendering safely handles quotes, tags, and script injection payloads.");
