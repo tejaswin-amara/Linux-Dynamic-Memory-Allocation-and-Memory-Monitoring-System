@@ -71,6 +71,7 @@ jobs:
           wait "$MONITOR_PID"
           trap - EXIT
           make clean && make all && make test
+          git fetch origin main:main
           git diff main..HEAD --stat -- src include
 
       - name: Run Benchmarks
