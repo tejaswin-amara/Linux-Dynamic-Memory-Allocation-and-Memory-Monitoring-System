@@ -460,8 +460,17 @@ static void *gui_server_worker(void *arg) {
 
     pthread_t thread;
     pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_attr_init(&attr) != 0 ||
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0) {
+      pthread_attr_destroy(&attr);
+      close(client_fd);
+      free(conn);
+      pthread_mutex_lock(&server->worker_mutex);
+      server->active_workers--;
+      pthread_cond_broadcast(&server->worker_cond);
+      pthread_mutex_unlock(&server->worker_mutex);
+      continue;
+    }
 
     if (pthread_create(&thread, &attr, client_thread_worker, conn) != 0) {
       close(client_fd);
@@ -479,7 +488,11 @@ static void *gui_server_worker(void *arg) {
 
 int gui_server_init(gui_server_t *server, const char *host, int port,
                     const char *auth_token) {
-  if (!server)
+  if (!server || port <= 0 || port > 65535)
+    return -1;
+  if (host && strlen(host) >= sizeof(server->bind_host))
+    return -1;
+  if (auth_token && strlen(auth_token) >= MAX_AUTH_TOKEN_LEN)
     return -1;
   memset(server, 0, sizeof(*server));
 
@@ -527,7 +540,7 @@ int gui_server_init(gui_server_t *server, const char *host, int port,
 }
 
 int gui_server_start(gui_server_t *server) {
-  if (!server)
+  if (!server || !server->initialized || server->is_running)
     return -1;
 
   signal(SIGPIPE, SIG_IGN);
