@@ -101,7 +101,28 @@ void test_gui_server_routes_and_auth(void) {
   TEST_ASSERT_EQUAL_INT(0, res);
   TEST_ASSERT_NOT_NULL(strstr(resp, "200 OK"));
 
-  /* 4. Disconnect survival / 404 Route */
+  /* 4. Bearer token auth */
+  res = http_request("127.0.0.1", port,
+                     "POST /api/process/signal HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer test-secret-token\r\nContent-Type: application/json\r\nContent-Length: 26\r\nConnection: close\r\n\r\n{\"pid\": 99999, \"signal\": \"0\"}",
+                     resp, sizeof(resp));
+  TEST_ASSERT_EQUAL_INT(0, res);
+  TEST_ASSERT_NOT_NULL(strstr(resp, "500 Internal Server Error"));
+
+  /* 5. Invalid signal */
+  res = http_request("127.0.0.1", port,
+                     "POST /api/process/signal HTTP/1.1\r\nHost: localhost\r\nX-Auth-Token: test-secret-token\r\nContent-Type: application/json\r\nContent-Length: 34\r\nConnection: close\r\n\r\n{\"pid\": 99999, \"signal\": \"BOGUS\"}",
+                     resp, sizeof(resp));
+  TEST_ASSERT_EQUAL_INT(0, res);
+  TEST_ASSERT_NOT_NULL(strstr(resp, "400 Bad Request"));
+
+  /* 6. Missing PID */
+  res = http_request("127.0.0.1", port,
+                     "POST /api/process/signal HTTP/1.1\r\nHost: localhost\r\nX-Auth-Token: test-secret-token\r\nContent-Type: application/json\r\nContent-Length: 17\r\nConnection: close\r\n\r\n{\"signal\": \"0\"}",
+                     resp, sizeof(resp));
+  TEST_ASSERT_EQUAL_INT(0, res);
+  TEST_ASSERT_NOT_NULL(strstr(resp, "400 Bad Request"));
+
+  /* 7. Disconnect survival / 404 Route */
   res = http_request("127.0.0.1", port,
                      "GET /unknown_route HTTP/1.1\r\nHost: localhost\r\n\r\n",
                      resp, sizeof(resp));
