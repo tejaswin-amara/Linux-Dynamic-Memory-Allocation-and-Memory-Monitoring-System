@@ -11,6 +11,13 @@ static void sigint_handler(int sig) {
   g_running = 0;
 }
 
+static void print_usage(const char *program) {
+  fprintf(stderr,
+          "Usage: %s [--headless] [--json] [--port PORT] [--bind ADDRESS] "
+          "[--token TOKEN]\n",
+          program);
+}
+
 static bool generate_random_token(char *out, size_t len) {
   static const char hex_chars[] = "0123456789abcdef";
   int fd = open("/dev/urandom", O_RDONLY);
@@ -46,24 +53,46 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "--json") == 0) {
       output_json = true;
       headless = true;
-    } else if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
-      char *endptr;
-      errno = 0;
-      long val = strtol(argv[++i], &endptr, 10);
-      if (errno != 0 || *endptr != '\0' || val <= 0 || val > 65535) {
-        fprintf(stderr, "Invalid port specified: %s\n", argv[i]);
-        return 1;
+    } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+      print_usage(argv[0]);
+      return 0;
+    } else if (strcmp(argv[i], "--port") == 0 || strcmp(argv[i], "--bind") == 0 ||
+               strcmp(argv[i], "--host") == 0 || strcmp(argv[i], "--token") == 0) {
+      if (i + 1 >= argc) {
+        fprintf(stderr, "Missing value for %s\n", argv[i]);
+        print_usage(argv[0]);
+        return 2;
       }
-      port = (int)val;
-    } else if ((strcmp(argv[i], "--bind") == 0 ||
-                strcmp(argv[i], "--host") == 0) &&
-               i + 1 < argc) {
-      strncpy(bind_host, argv[++i], sizeof(bind_host) - 1);
-      bind_host[sizeof(bind_host) - 1] = '\0';
-    } else if (strcmp(argv[i], "--token") == 0 && i + 1 < argc) {
-      strncpy(auth_token, argv[++i], sizeof(auth_token) - 1);
-      auth_token[sizeof(auth_token) - 1] = '\0';
-      token_provided = true;
+      const char *value = argv[++i];
+
+      if (strcmp(argv[i - 1], "--port") == 0) {
+        char *endptr;
+        errno = 0;
+        long val = strtol(value, &endptr, 10);
+        if (errno != 0 || *endptr != '\0' || val <= 0 || val > 65535) {
+          fprintf(stderr, "Invalid port specified: %s\n", value);
+          return 2;
+        }
+        port = (int)val;
+      } else if (strcmp(argv[i - 1], "--bind") == 0 ||
+                 strcmp(argv[i - 1], "--host") == 0) {
+        if (strlen(value) >= sizeof(bind_host)) {
+          fprintf(stderr, "Bind address is too long.\n");
+          return 2;
+        }
+        strcpy(bind_host, value);
+      } else {
+        if (strlen(value) >= sizeof(auth_token)) {
+          fprintf(stderr, "Auth token is too long.\n");
+          return 2;
+        }
+        strcpy(auth_token, value);
+        token_provided = true;
+      }
+    } else {
+      fprintf(stderr, "Unknown option: %s\n", argv[i]);
+      print_usage(argv[0]);
+      return 2;
     }
   }
 
@@ -97,7 +126,11 @@ int main(int argc, char **argv) {
   }
 
   if (output_json) {
-    proc_parser_take_snapshot(snapshot);
+    if (proc_parser_take_snapshot(snapshot) != 0) {
+      LOG_ERROR("Failed to collect system snapshot");
+      free(snapshot);
+      return 1;
+    }
     printf("{\n  \"cpu\": {\"total_usage_pct\": %.2f, \"core_count\": %d},\n",
            snapshot->cpu.total_usage_pct, snapshot->cpu.core_count);
     printf("  \"mem\": {\"mem_total_kb\": %lu, \"mem_available_kb\": %lu, "
@@ -127,8 +160,11 @@ int main(int argc, char **argv) {
              "Ctrl+C to terminate.",
              bind_host, port);
     while (g_running) {
-      proc_parser_take_snapshot(snapshot);
-      gui_server_update_snapshot(&server, snapshot);
+      if (proc_parser_take_snapshot(snapshot) != 0) {
+        LOG_WARN("System snapshot failed; retaining previous dashboard state");
+      } else {
+        gui_server_update_snapshot(&server, snapshot);
+      }
       sleep(1);
     }
   } else {
@@ -143,11 +179,13 @@ int main(int argc, char **argv) {
                          .pending_kill_pid = -1};
 
     while (g_running && state.is_running) {
-      proc_parser_take_snapshot(snapshot);
-      gui_server_update_snapshot(&server, snapshot);
-
-      tui_render(snapshot, &state);
-      tui_handle_input(snapshot, &state);
+      if (proc_parser_take_snapshot(snapshot) != 0) {
+        LOG_WARN("System snapshot failed; skipping this TUI frame");
+      } else {
+        gui_server_update_snapshot(&server, snapshot);
+        tui_render(snapshot, &state);
+        tui_handle_input(snapshot, &state);
+      }
 
       usleep(250000); /* 250 ms refresh loop */
     }
