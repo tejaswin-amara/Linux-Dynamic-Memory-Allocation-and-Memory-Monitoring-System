@@ -74,7 +74,7 @@ sequenceDiagram
     participant Shim as preload_shim.c
     participant Alloc as allocator.c (my_malloc)
     participant Mutex as alloc_mutex
-    participant Bins as Segregated Free Lists (10 Bins)
+    participant Bins as Segregated Free Lists (8 Bins)
     participant Kernel as Linux Kernel VM
 
     App->>Shim: malloc(size)
