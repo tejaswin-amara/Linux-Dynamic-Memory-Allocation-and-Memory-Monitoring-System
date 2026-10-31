@@ -20,7 +20,7 @@
 
 ## Overview
 
-This repository is a low-level Linux systems project for **KLEF 25CS2104E: Outside-In Operating Systems & Systems Programming**.
+This repository is a low-level Linux systems project for **KLEF 25CS2104E: Operating Systems & Systems Programming**.
 
 It contains two closely related subsystems:
 
