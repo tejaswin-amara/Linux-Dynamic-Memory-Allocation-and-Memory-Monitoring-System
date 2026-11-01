@@ -54,7 +54,7 @@ fi
 
 echo "==> Installing Ubuntu dependencies"
 $APT update
-$APT install -y build-essential gcc make valgrind libncurses-dev clang-format curl
+$APT install -y build-essential gcc make valgrind libncurses-dev clang-format curl nodejs python3
 
 if ! command -v gcc >/dev/null 2>&1 || ! command -v make >/dev/null 2>&1; then
   echo "ERROR: gcc/make installation failed." >&2

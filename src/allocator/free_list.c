@@ -3,8 +3,19 @@
 #include <unistd.h>
 
 static void fatal_abort(const char *msg) {
-  ssize_t ret = write(STDERR_FILENO, msg, strlen(msg));
-  (void)ret;
+  size_t len = strlen(msg);
+  while (len > 0) {
+    ssize_t ret = write(STDERR_FILENO, msg, len);
+    if (ret < 0) {
+      if (errno == EINTR)
+        continue;
+      break;
+    }
+    if (ret == 0)
+      break;
+    msg += ret;
+    len -= (size_t)ret;
+  }
   abort();
 }
 
@@ -50,6 +61,14 @@ void free_list_remove(block_header_t *block) {
   }
   if (!block->is_free) {
     fatal_abort("[FATAL] Attempt to unlink an allocated block\n");
+  }
+
+  void *heap_end = sbrk(0);
+  if (heap_end != (void *)-1) {
+    if ((void *)block >= heap_end ||
+        (size_t)((char *)heap_end - (char *)block) < block->block_size) {
+      fatal_abort("[FATAL] Free-list block size exceeds heap break\n");
+    }
   }
 
   int idx = get_size_class_index(block->block_size);
@@ -126,6 +145,13 @@ int free_list_verify_integrity(void) {
       if (curr->magic_header != ALLOC_MAGIC_HEADER || !curr->is_free ||
           curr->block_size < sizeof(block_header_t) + sizeof(block_footer_t)) {
         return -1;
+      }
+      void *heap_end = sbrk(0);
+      if (heap_end != (void *)-1) {
+        if ((void *)curr >= heap_end ||
+            (size_t)((char *)heap_end - (char *)curr) < curr->block_size) {
+          return -1;
+        }
       }
       if ((curr->prev == NULL && segregated_heads[i] != curr) ||
           (curr->prev && curr->prev->next != curr) ||

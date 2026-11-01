@@ -1,6 +1,8 @@
 #include "allocator.h"
 #include "free_list_internal.h"
 #include "unity.h"
+#include <errno.h>
+#include <stdint.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -227,6 +229,48 @@ void test_coalescing(void) {
   my_free(p4);
 }
 
+void test_realloc_shrink_stats_accounting(void) {
+  allocator_stats_t b0 = allocator_get_stats();
+  void *p = my_malloc(1024);
+  TEST_ASSERT_NOT_NULL(p);
+  allocator_stats_t b1 = allocator_get_stats();
+  TEST_ASSERT_EQUAL_UINT(b0.total_allocated + 1024, b1.total_allocated);
+  TEST_ASSERT_EQUAL_UINT(b0.total_freed, b1.total_freed);
+
+  /* Shrink in-place to 256 bytes */
+  void *p_shrunk = my_realloc(p, 256);
+  TEST_ASSERT_EQUAL_PTR(p, p_shrunk);
+  allocator_stats_t b2 = allocator_get_stats();
+  /* Freed must be credited with 1024 - 256 = 768 bytes */
+  TEST_ASSERT_EQUAL_UINT(b0.total_freed + 768, b2.total_freed);
+  TEST_ASSERT_EQUAL_UINT(b1.total_allocated, b2.total_allocated);
+
+  /* Free shrunk pointer */
+  my_free(p_shrunk);
+  allocator_stats_t b3 = allocator_get_stats();
+  /* Net in-use delta must be exactly 0 (no phantom leak) */
+  TEST_ASSERT_EQUAL_UINT(b3.total_allocated - b0.total_allocated,
+                         b3.total_freed - b0.total_freed);
+}
+
+void test_realloc_mmap_to_sbrk_boundary(void) {
+  size_t large_size = 256 * 1024;
+  size_t small_size = 32 * 1024;
+  void *p = my_malloc(large_size);
+  TEST_ASSERT_NOT_NULL(p);
+  memset(p, 0xAB, small_size);
+
+  void *p_small = my_realloc(p, small_size);
+  TEST_ASSERT_NOT_NULL(p_small);
+
+  unsigned char *buf = (unsigned char *)p_small;
+  for (size_t i = 0; i < small_size; ++i) {
+    TEST_ASSERT_EQUAL_UINT(0xAB, buf[i]);
+  }
+  my_free(p_small);
+  TEST_ASSERT_EQUAL_INT(0, allocator_verify_integrity());
+}
+
 int main(void) {
   UnityBegin("test_allocator.c");
   RUN_TEST(test_my_malloc_small);
@@ -244,5 +288,7 @@ int main(void) {
   RUN_TEST(test_integrity_rejects_free_list_link_corruption);
   RUN_TEST(test_free_list_link_corruption_abort);
   RUN_TEST(test_coalescing);
+  RUN_TEST(test_realloc_shrink_stats_accounting);
+  RUN_TEST(test_realloc_mmap_to_sbrk_boundary);
   return UnityEnd();
 }

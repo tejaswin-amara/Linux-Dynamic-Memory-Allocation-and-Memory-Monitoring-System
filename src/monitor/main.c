@@ -132,6 +132,7 @@ int main(int argc, char **argv) {
   }
 
   if (output_json) {
+    usleep(100000); /* 100ms sampling delay for accurate CPU delta calculation */
     if (proc_parser_take_snapshot(snapshot) != 0) {
       LOG_ERROR("Failed to collect system snapshot");
       free(snapshot);

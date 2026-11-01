@@ -14,12 +14,15 @@ typedef struct {
 static process_cpu_history_t prev_processes[MAX_PROCS];
 static int prev_process_count = 0;
 
-static unsigned long long previous_process_time(pid_t pid) {
+static bool find_previous_process_time(pid_t pid, unsigned long long *out_time) {
   for (int i = 0; i < prev_process_count; ++i) {
-    if (prev_processes[i].pid == pid)
-      return prev_processes[i].total_time;
+    if (prev_processes[i].pid == pid) {
+      if (out_time)
+        *out_time = prev_processes[i].total_time;
+      return true;
+    }
   }
-  return 0;
+  return false;
 }
 
 int proc_parser_init(void) {
@@ -116,7 +119,8 @@ int proc_parser_read_mem(mem_metrics_t *metrics) {
     return -1;
   buf[bytes_read] = '\0';
 
-  char *line = strtok(buf, "\n");
+  char *saveptr = NULL;
+  char *line = strtok_r(buf, "\n", &saveptr);
   while (line) {
     unsigned long val = 0;
     if (sscanf(line, "MemTotal: %lu kB", &val) == 1)
@@ -133,7 +137,7 @@ int proc_parser_read_mem(mem_metrics_t *metrics) {
       metrics->swap_total_kb = val;
     else if (sscanf(line, "SwapFree: %lu kB", &val) == 1)
       metrics->swap_free_kb = val;
-    line = strtok(NULL, "\n");
+    line = strtok_r(NULL, "\n", &saveptr);
   }
 
   if (metrics->mem_total_kb > 0) {
@@ -188,6 +192,9 @@ int proc_parser_read_process(pid_t pid, process_info_t *proc,
   memcpy(proc->comm, comm_start + 1, comm_len);
   proc->comm[comm_len] = '\0';
 
+  if ((size_t)(comm_end - buf) + 2 >= (size_t)bytes_read)
+    return -1;
+
   char *rest = comm_end + 2;
   int ppid = 0;
   long priority = 0;
@@ -222,7 +229,8 @@ int proc_parser_read_process(pid_t pid, process_info_t *proc,
     close(fd);
     if (bytes_read > 0) {
       buf[bytes_read] = '\0';
-      char *s_line = strtok(buf, "\n");
+      char *saveptr = NULL;
+      char *s_line = strtok_r(buf, "\n", &saveptr);
       while (s_line) {
         unsigned long val = 0;
         if (sscanf(s_line, "VmSize: %lu kB", &val) == 1)
@@ -233,7 +241,7 @@ int proc_parser_read_process(pid_t pid, process_info_t *proc,
           proc->voluntary_ctxt_switches = val;
         else if (sscanf(s_line, "nonvoluntary_ctxt_switches: %lu", &val) == 1)
           proc->nonvoluntary_ctxt_switches = val;
-        s_line = strtok(NULL, "\n");
+        s_line = strtok_r(NULL, "\n", &saveptr);
       }
     }
   }
@@ -277,13 +285,16 @@ int proc_parser_take_snapshot(system_snapshot_t *snapshot) {
     if (proc_parser_read_process(pid, &proc, last_system_jiffies_delta) != 0)
       continue;
 
+    proc.cpu_usage_pct = 0.0f;
     if (last_system_jiffies_delta > 0) {
-      unsigned long long previous = previous_process_time(proc.pid);
-      unsigned long long process_delta =
-          proc.total_time >= previous ? proc.total_time - previous : 0;
-      proc.cpu_usage_pct =
-          ((float)process_delta / (float)last_system_jiffies_delta) * 100.0f *
-          (float)sys_core_count;
+      unsigned long long previous = 0;
+      if (find_previous_process_time(proc.pid, &previous)) {
+        unsigned long long process_delta =
+            proc.total_time >= previous ? proc.total_time - previous : 0;
+        proc.cpu_usage_pct =
+            ((float)process_delta / (float)last_system_jiffies_delta) * 100.0f *
+            (float)sys_core_count;
+      }
     }
 
     if (snapshot->mem.mem_total_kb > 0) {

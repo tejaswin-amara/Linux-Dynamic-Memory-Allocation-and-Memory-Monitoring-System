@@ -4,11 +4,32 @@
 # ==============================================================================
 
 CC ?= gcc
-CFLAGS ?= -Wall -Wextra -Werror -pedantic -std=c11 -D_GNU_SOURCE -pthread -fPIC -g -O2 -MMD -MP
+BASE_CFLAGS := -Wall -Wextra -Werror -pedantic -std=c11 -D_GNU_SOURCE -pthread
+CFLAGS ?= -g -O2
 INC_FLAGS := -Iinclude -Isrc/allocator -Itests/unity
+DEP_FLAGS := -MMD -MP
+
+# Sanitizer Flags
+ASAN_FLAGS := -fsanitize=address,undefined -g -fno-omit-frame-pointer
+
+# Determine Active Build Mode
+BUILD_MODE ?= release
+ifeq ($(filter asan,$(MAKECMDGOALS)),asan)
+  BUILD_MODE := asan
+endif
+
+ifeq ($(BUILD_MODE),asan)
+  MODE_CFLAGS := $(ASAN_FLAGS)
+  BUILD_DIR := build/asan
+else
+  MODE_CFLAGS :=
+  BUILD_DIR := build
+endif
+
+ALL_CFLAGS = $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) $(INC_FLAGS) $(DEP_FLAGS)
+SHLIB_CFLAGS = $(ALL_CFLAGS) -fPIC -fvisibility=hidden
 
 # Targets and Directories
-BUILD_DIR := build
 BIN_DIR := bin
 SRC_ALLOC_DIR := src/allocator
 SRC_MONITOR_DIR := src/monitor
@@ -23,11 +44,53 @@ TEST_SIGNAL := test_signal_handler
 TEST_GUI := test_gui_server
 
 # Libraries
+LDLIBS_SHLIB := -ldl
 LDLIBS_MONITOR := -lncurses -pthread
 LDLIBS_TEST := -pthread -lm
 
-# Sanitizer Flags
-ASAN_FLAGS := -fsanitize=address,undefined -g -fno-omit-frame-pointer
+# Mode Sentinel Tracking
+MODE_FILE := build/.mode
+ACTIVE_MODE := $(shell cat $(MODE_FILE) 2>/dev/null)
+ifneq ($(ACTIVE_MODE),$(BUILD_MODE))
+  $(shell mkdir -p build && echo $(BUILD_MODE) > $(MODE_FILE))
+endif
+
+# Source and Object Definitions
+LIB_SRCS := $(SRC_ALLOC_DIR)/allocator.c \
+            $(SRC_ALLOC_DIR)/free_list.c \
+            $(SRC_ALLOC_DIR)/preload_shim.c
+LIB_OBJS := $(patsubst %.c,$(BUILD_DIR)/%.pic.o,$(LIB_SRCS))
+
+MONITOR_SRCS := $(SRC_MONITOR_DIR)/main.c \
+                $(SRC_MONITOR_DIR)/proc_parser.c \
+                $(SRC_MONITOR_DIR)/signal_handler.c \
+                $(SRC_MONITOR_DIR)/gui_server.c \
+                $(SRC_UI_DIR)/tui.c
+MONITOR_OBJS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(MONITOR_SRCS))
+
+TEST_UNITY_OBJ := $(BUILD_DIR)/$(TESTS_DIR)/unity/unity.o
+
+TEST_ALLOC_OBJS := $(BUILD_DIR)/$(TESTS_DIR)/test_allocator.o \
+                   $(TEST_UNITY_OBJ) \
+                   $(BUILD_DIR)/$(SRC_ALLOC_DIR)/allocator.o \
+                   $(BUILD_DIR)/$(SRC_ALLOC_DIR)/free_list.o
+
+TEST_PARSER_OBJS := $(BUILD_DIR)/$(TESTS_DIR)/test_proc_parser.o \
+                    $(TEST_UNITY_OBJ) \
+                    $(BUILD_DIR)/$(SRC_MONITOR_DIR)/proc_parser.o
+
+TEST_SIGNAL_OBJS := $(BUILD_DIR)/$(TESTS_DIR)/test_signal_handler.o \
+                    $(TEST_UNITY_OBJ) \
+                    $(BUILD_DIR)/$(SRC_MONITOR_DIR)/signal_handler.o
+
+TEST_GUI_OBJS := $(BUILD_DIR)/$(TESTS_DIR)/test_gui_server.o \
+                 $(TEST_UNITY_OBJ) \
+                 $(BUILD_DIR)/$(SRC_MONITOR_DIR)/gui_server.o \
+                 $(BUILD_DIR)/$(SRC_MONITOR_DIR)/signal_handler.o
+
+ALL_OBJS := $(sort $(MONITOR_OBJS) $(TEST_ALLOC_OBJS) $(TEST_PARSER_OBJS) \
+                   $(TEST_SIGNAL_OBJS) $(TEST_GUI_OBJS))
+ALL_DEPS := $(ALL_OBJS:.o=.d) $(LIB_OBJS:.pic.o=.pic.d)
 
 .PHONY: all asan valgrind soak test benchmark clean help directories
 
@@ -37,52 +100,47 @@ directories:
 	@mkdir -p $(BUILD_DIR) $(BIN_DIR)
 
 # ------------------------------------------------------------------------------
-# Module A: Custom Dynamic Memory Allocator (Shared Library)
+# Pattern Rules for Objects (M1.1)
 # ------------------------------------------------------------------------------
-$(LIB_ALLOC): $(SRC_ALLOC_DIR)/allocator.c $(SRC_ALLOC_DIR)/free_list.c $(SRC_ALLOC_DIR)/preload_shim.c
-	@echo "==> Building Shared Library: $@"
-	$(CC) $(CFLAGS) -fvisibility=hidden $(INC_FLAGS) -shared -o $@ $^ -ldl
+$(BUILD_DIR)/%.pic.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(SHLIB_CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: %.c
+	@mkdir -p $(dir $@)
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # ------------------------------------------------------------------------------
-# Module B & C: System Monitor & Interface Layer
+# Binaries and Shared Libraries
 # ------------------------------------------------------------------------------
-$(BIN_MONITOR): $(SRC_MONITOR_DIR)/main.c $(SRC_MONITOR_DIR)/proc_parser.c \
-                $(SRC_MONITOR_DIR)/signal_handler.c $(SRC_MONITOR_DIR)/gui_server.c \
-                $(SRC_UI_DIR)/tui.c
-	@echo "==> Building Task Manager Binary: $@"
-	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_MONITOR)
+$(LIB_ALLOC): $(LIB_OBJS) $(MODE_FILE)
+	@echo "==> Linking Shared Library: $@"
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) -shared -o $@ $(LIB_OBJS) $(LDLIBS_SHLIB)
 
-# ------------------------------------------------------------------------------
-# Sanitizers (ASan / UBSan)
-# ------------------------------------------------------------------------------
-asan: CFLAGS += $(ASAN_FLAGS)
-asan: directories $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
-	@echo "==> Built with AddressSanitizer and UndefinedBehaviorSanitizer"
+$(BIN_MONITOR): $(MONITOR_OBJS) $(MODE_FILE)
+	@echo "==> Linking Task Manager Binary: $@"
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) -o $@ $(MONITOR_OBJS) $(LDLIBS_MONITOR)
 
 # ------------------------------------------------------------------------------
-# Testing Targets
+# Testing Targets (M1.2 & M1.3)
 # ------------------------------------------------------------------------------
-$(TEST_ALLOC): $(TESTS_DIR)/test_allocator.c $(SRC_ALLOC_DIR)/allocator.c \
-               $(SRC_ALLOC_DIR)/free_list.c $(TESTS_DIR)/unity/unity.c
-	@echo "==> Building Allocator Unit Tests: $@"
-	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
+$(TEST_ALLOC): $(TEST_ALLOC_OBJS) $(MODE_FILE)
+	@echo "==> Linking Allocator Unit Tests: $@"
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) -o $@ $(TEST_ALLOC_OBJS) $(LDLIBS_TEST)
 
-$(TEST_PARSER): $(TESTS_DIR)/test_proc_parser.c $(SRC_MONITOR_DIR)/proc_parser.c \
-                $(TESTS_DIR)/unity/unity.c
-	@echo "==> Building Proc Parser Unit Tests: $@"
-	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
+$(TEST_PARSER): $(TEST_PARSER_OBJS) $(MODE_FILE)
+	@echo "==> Linking Proc Parser Unit Tests: $@"
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) -o $@ $(TEST_PARSER_OBJS) $(LDLIBS_TEST)
 
-$(TEST_SIGNAL): $(TESTS_DIR)/test_signal_handler.c $(SRC_MONITOR_DIR)/signal_handler.c \
-                $(TESTS_DIR)/unity/unity.c
-	@echo "==> Building Signal Handler Unit Tests: $@"
-	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
+$(TEST_SIGNAL): $(TEST_SIGNAL_OBJS) $(MODE_FILE)
+	@echo "==> Linking Signal Handler Unit Tests: $@"
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) -o $@ $(TEST_SIGNAL_OBJS) $(LDLIBS_TEST)
 
-$(TEST_GUI): $(TESTS_DIR)/test_gui_server.c $(SRC_MONITOR_DIR)/gui_server.c \
-             $(SRC_MONITOR_DIR)/signal_handler.c $(TESTS_DIR)/unity/unity.c
-	@echo "==> Building GUI Server Unit Tests: $@"
-	$(CC) $(CFLAGS) $(INC_FLAGS) -o $@ $^ $(LDLIBS_TEST)
+$(TEST_GUI): $(TEST_GUI_OBJS) $(MODE_FILE)
+	@echo "==> Linking GUI Server Unit Tests: $@"
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) $(MODE_CFLAGS) -o $@ $(TEST_GUI_OBJS) $(LDLIBS_TEST)
 
-test: $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
+test: all $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	@echo "==> Running Allocator Unit Tests..."
 	./$(TEST_ALLOC)
 	@echo "==> Running Proc Parser Unit Tests..."
@@ -92,9 +150,21 @@ test: $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	@echo "==> Running GUI Server Unit Tests..."
 	./$(TEST_GUI)
 	@echo "==> Running XSS Security Tests..."
-	node tests/test_xss.js
+	@if command -v node >/dev/null 2>&1; then \
+		node tests/test_xss.js; \
+	elif command -v python3 >/dev/null 2>&1; then \
+		python3 tests/test_xss.py; \
+	else \
+		echo "[-] WARNING: Neither node nor python3 found; skipping XSS DOM security test"; \
+	fi
 	@echo "==> Running Integration Tests..."
 	@bash tests/integration_test.sh
+
+# ------------------------------------------------------------------------------
+# Sanitizers (ASan / UBSan) (M1.4)
+# ------------------------------------------------------------------------------
+asan: directories $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
+	@echo "==> Built with AddressSanitizer and UndefinedBehaviorSanitizer"
 
 valgrind: all $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI)
 	@echo "==> Running Allocator Valgrind Leak Checks..."
@@ -118,16 +188,16 @@ benchmark: $(LIB_ALLOC)
 
 clean:
 	@echo "==> Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR) $(BIN_DIR) $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI) *.o *.d
+	rm -rf build bin $(LIB_ALLOC) $(BIN_MONITOR) $(TEST_ALLOC) $(TEST_PARSER) $(TEST_SIGNAL) $(TEST_GUI) *.o *.d
 
 help:
 	@echo "Available Makefile targets:"
-	@echo "  all        - Build libmyalloc.so and mem_monitor binary"
-	@echo "  asan       - Compile with AddressSanitizer and UBSan enabled"
-	@echo "  test       - Build and execute Unity unit tests and integration tests"
-	@echo "  valgrind   - Run Memcheck including mem_monitor under Valgrind (Memcheck's allocator replaces libmyalloc.so in this run; see scripts/selfhosted_soak.sh for the allocator soak)"
-	@echo "  soak       - Run mem_monitor with libmyalloc.so under authenticated HTTP load without Valgrind"
+	@echo "  all        - Build libmyalloc.so and mem_monitor binary (release mode)"
+	@echo "  asan       - Compile with AddressSanitizer and UBSan into build/asan"
+	@echo "  test       - Build all targets and execute unit tests, XSS check, and integration tests"
+	@echo "  valgrind   - Run Memcheck suite"
+	@echo "  soak       - Run mem_monitor soak test under HTTP load"
 	@echo "  benchmark  - Execute performance benchmarks comparing with glibc"
 	@echo "  clean      - Remove compiled artifacts"
 
--include *.d
+-include $(ALL_DEPS)

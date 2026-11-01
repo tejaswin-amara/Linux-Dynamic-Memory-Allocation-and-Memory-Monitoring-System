@@ -27,9 +27,9 @@
 
 #define LOG_INFO(...)                                                          \
   do {                                                                         \
-    fprintf(stdout, "[INFO] [%s:%d] ", __FILE__, __LINE__);                    \
-    fprintf(stdout, __VA_ARGS__);                                              \
-    fprintf(stdout, "\n");                                                     \
+    fprintf(stderr, "[INFO] [%s:%d] ", __FILE__, __LINE__);                    \
+    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(stderr, "\n");                                                     \
   } while (0)
 
 #define LOG_WARN(...)                                                          \

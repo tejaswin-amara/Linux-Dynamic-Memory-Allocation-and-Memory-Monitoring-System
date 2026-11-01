@@ -6,7 +6,8 @@
 #include <sys/time.h>
 
 #define BUFFER_SIZE 8192
-#define INITIAL_JSON_CAP (1024 * 1024)
+#define INITIAL_JSON_CAP (64 * 1024)
+
 
 typedef struct {
   gui_server_t *server;
@@ -220,10 +221,16 @@ static void serve_metrics_json(gui_server_t *server, int client_fd) {
   pthread_rwlock_unlock(&server->snapshot_lock);
 
   if (offset + 32 > cap) {
-    free(json);
-    send_response(client_fd, "500 Internal Server Error", "text/plain",
-                  "Unable to serialize metrics", NULL);
-    return;
+    size_t new_cap = cap + 1024;
+    char *new_json = realloc(json, new_cap);
+    if (!new_json) {
+      free(json);
+      send_response(client_fd, "500 Internal Server Error", "text/plain",
+                    "Unable to serialize metrics", NULL);
+      return;
+    }
+    json = new_json;
+    cap = new_cap;
   }
   snprintf(json + offset, cap - offset, "  ]\n}\n");
 
@@ -283,33 +290,68 @@ static bool check_auth(gui_server_t *server, const char *buffer) {
 
 static void parse_json_field(const char *json, const char *key, char *out_val,
                              size_t max_len) {
-  out_val[0] = '\0';
-  char search_key[128];
-  snprintf(search_key, sizeof(search_key), "\"%s\"", key);
-
-  const char *pos = strstr(json, search_key);
-  if (!pos)
+  if (!json || !key || !out_val || max_len == 0) {
+    if (out_val && max_len > 0) {
+      out_val[0] = '\0';
+    }
     return;
-
-  pos += strlen(search_key);
-  while (*pos == ' ' || *pos == '\t' || *pos == ':')
-    pos++;
-
-  size_t idx = 0;
-  if (*pos == '"') {
-    pos++;
-    while (*pos && *pos != '"' && idx < max_len - 1) {
-      out_val[idx++] = *pos++;
-    }
-  } else {
-    while (*pos &&
-           (*pos == '-' || (*pos >= '0' && *pos <= '9') ||
-            (*pos >= 'a' && *pos <= 'z') || (*pos >= 'A' && *pos <= 'Z')) &&
-           idx < max_len - 1) {
-      out_val[idx++] = *pos++;
-    }
   }
-  out_val[idx] = '\0';
+  out_val[0] = '\0';
+
+  char search_key[128];
+  int sk_len = snprintf(search_key, sizeof(search_key), "\"%s\"", key);
+  if (sk_len <= 0 || (size_t)sk_len >= sizeof(search_key)) {
+    return;
+  }
+
+  const char *p = json;
+  while ((p = strstr(p, search_key)) != NULL) {
+    // 1. Verify preceding character: must be '{' or ',' (skipping whitespace)
+    const char *back = p - 1;
+    while (back >= json && (*back == ' ' || *back == '\t' || *back == '\r' || *back == '\n')) {
+      back--;
+    }
+    if (back >= json && *back != '{' && *back != ',') {
+      p += sk_len;
+      continue;
+    }
+
+    // 2. Verify succeeding character: must have ':' after optional whitespace
+    const char *after = p + sk_len;
+    while (*after == ' ' || *after == '\t' || *after == '\r' || *after == '\n') {
+      after++;
+    }
+    if (*after != ':') {
+      p += sk_len;
+      continue;
+    }
+
+    // Advance past ':' and optional whitespace
+    after++;
+    while (*after == ' ' || *after == '\t' || *after == '\r' || *after == '\n') {
+      after++;
+    }
+
+    // 3. Extract value safely (quoted string or primitive token)
+    size_t idx = 0;
+    if (*after == '"') {
+      after++;
+      while (*after && *after != '"' && idx < max_len - 1) {
+        if (*after == '\\' && *(after + 1)) {
+          after++;
+        }
+        out_val[idx++] = *after++;
+      }
+    } else {
+      while (*after && *after != ',' && *after != '}' && *after != ']' &&
+             *after != ' ' && *after != '\t' && *after != '\r' && *after != '\n' &&
+             idx < max_len - 1) {
+        out_val[idx++] = *after++;
+      }
+    }
+    out_val[idx] = '\0';
+    return;
+  }
 }
 
 static void handle_process_signal(gui_server_t *server, int client_fd,

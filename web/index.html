@@ -3,107 +3,258 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Linux Task Manager & Memory Allocator Dashboard</title>
+    <meta name="description" content="Real-time Linux System Telemetry and Dynamic Memory Allocator Monitoring Dashboard">
+    <title>Linux Task Manager &amp; Memory Allocator Dashboard</title>
     <link rel="stylesheet" href="style.css">
-
 </head>
 <body>
-    <header class="app-header">
-        <div class="logo-area">
-            <span class="status-indicator live"></span>
-            <h1>Linux System Task Manager</h1>
-            <span class="badge">25CS2104E Capstone</span>
-        </div>
-        <div class="header-actions">
-            <span id="uptime-display" class="metric-tag">Polling: 1000ms</span>
-            <input id="api-token" class="search-input token-input" type="password" autocomplete="off" placeholder="API token">
-            <button id="refresh-btn" class="btn btn-sm">Refresh Now</button>
-        </div>
-    </header>
-
-    <main class="dashboard-grid">
-        <!-- System Gauges Card -->
-        <section class="card system-overview">
-            <h2>System Resources</h2>
-            <div class="gauges-container">
-                <div class="gauge-card">
-                    <div class="gauge-title">CPU Utilization</div>
-                    <div class="gauge-value" id="cpu-pct">--%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill cpu-fill" id="cpu-bar" style="width: 0%;"></div>
-                    </div>
-                    <div class="gauge-sub" id="cpu-sub">Cores: --</div>
+    <div class="app-wrapper">
+        <!-- Top Navigation & Control Header -->
+        <header class="app-header">
+            <div class="header-branding">
+                <div class="logo-badge" aria-hidden="true">
+                    <span class="status-indicator live" title="Live Telemetry Feed"></span>
+                    <span class="logo-mark">&#9670;</span>
                 </div>
-
-                <div class="gauge-card">
-                    <div class="gauge-title">Memory (RAM)</div>
-                    <div class="gauge-value" id="mem-pct">--%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill mem-fill" id="mem-bar" style="width: 0%;"></div>
+                <div class="title-group">
+                    <div class="title-row">
+                        <h1>Linux System Task Manager</h1>
+                        <span class="version-chip">v2.4 Telemetry</span>
                     </div>
-                    <div class="gauge-sub" id="mem-sub">Used: -- / --</div>
-                </div>
-
-                <div class="gauge-card">
-                    <div class="gauge-title">Swap Space</div>
-                    <div class="gauge-value" id="swap-pct">--%</div>
-                    <div class="progress-bar">
-                        <div class="progress-fill swap-fill" id="swap-bar" style="width: 0%;"></div>
-                    </div>
-                    <div class="gauge-sub" id="swap-sub">Used: -- / --</div>
+                    <span class="capstone-tag">25CS2104E Capstone &bull; VFS Monitor &amp; libmyalloc</span>
                 </div>
             </div>
-        </section>
-
-        <!-- Process Manager Table Card -->
-        <section class="card process-section">
-            <div class="section-header">
-                <h2>Active Processes (<span id="process-count">0</span>)</h2>
-                <div class="table-controls">
-                    <input type="text" id="proc-search" placeholder="Search PID or Command..." class="search-input">
-                    <select id="sort-select" class="select-input">
-                        <option value="cpu">Sort by CPU %</option>
-                        <option value="mem">Sort by Memory (RSS)</option>
-                        <option value="pid">Sort by PID</option>
-                    </select>
+            <div class="header-actions">
+                <div class="polling-status">
+                    <span class="pulse-beacon" aria-hidden="true">
+                        <span class="beacon-ring"></span>
+                        <span class="beacon-dot"></span>
+                    </span>
+                    <span id="uptime-display" class="metric-tag">Polling: 1000ms</span>
                 </div>
+                <div class="token-container">
+                    <label for="api-token" class="sr-only">API Authorization Token</label>
+                    <input id="api-token" class="search-input token-input" type="password" autocomplete="off" placeholder="API Secret Token" aria-label="API Authorization Token">
+                </div>
+                <button id="refresh-btn" class="btn btn-sm btn-ghost" title="Poll latest metrics">
+                    <span class="btn-icon">&#8635;</span> Refresh Now
+                </button>
             </div>
+        </header>
 
-            <div class="table-responsive">
-                <table class="proc-table">
-                    <thead>
-                        <tr>
-                            <th>PID</th>
-                            <th>Command</th>
-                            <th>State</th>
-                            <th>Threads</th>
-                            <th>CPU %</th>
-                            <th>RSS (KB)</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="proc-tbody">
-                        <tr>
-                            <td colspan="7" class="text-center">Awaiting telemetry stream...</td>
-                        </tr>
-                    </tbody>
-                </table>
+        <main class="dashboard-grid">
+            <!-- System Telemetry Overview -->
+            <section class="card system-overview" aria-labelledby="heading-system">
+                <div class="card-header">
+                    <div class="header-title-row">
+                        <h2 id="heading-system">System Resources</h2>
+                        <span class="badge badge-subtle">VFS Kernel Stream</span>
+                    </div>
+                    <span class="card-caption">Host Telemetry &bull; Real-time /proc/stat &amp; /proc/meminfo</span>
+                </div>
+                <div class="gauges-container">
+                    <!-- CPU Utilization Card -->
+                    <div class="gauge-card cpu-card">
+                        <div class="gauge-meta">
+                            <span class="gauge-title">CPU Utilization</span>
+                            <span class="gauge-tag">Kernel &amp; User</span>
+                        </div>
+                        <div class="gauge-value-row">
+                            <div class="gauge-value" id="cpu-pct">--%</div>
+                        </div>
+                        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="CPU Utilization">
+                            <div class="progress-fill cpu-fill" id="cpu-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="gauge-sub" id="cpu-sub">Cores: --</div>
+                    </div>
+
+                    <!-- RAM Card -->
+                    <div class="gauge-card mem-card">
+                        <div class="gauge-meta">
+                            <span class="gauge-title">Physical RAM</span>
+                            <span class="gauge-tag">Memory Pools</span>
+                        </div>
+                        <div class="gauge-value-row">
+                            <div class="gauge-value" id="mem-pct">--%</div>
+                        </div>
+                        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="RAM Usage">
+                            <div class="progress-fill mem-fill" id="mem-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="gauge-sub" id="mem-sub">Used: -- / --</div>
+                    </div>
+
+                    <!-- Swap Card -->
+                    <div class="gauge-card swap-card">
+                        <div class="gauge-meta">
+                            <span class="gauge-title">Swap Space</span>
+                            <span class="gauge-tag">Paging File</span>
+                        </div>
+                        <div class="gauge-value-row">
+                            <div class="gauge-value" id="swap-pct">--%</div>
+                        </div>
+                        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Swap Space Usage">
+                            <div class="progress-fill swap-fill" id="swap-bar" style="width: 0%;"></div>
+                        </div>
+                        <div class="gauge-sub" id="swap-sub">Used: -- / --</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Dynamic Memory Allocator Telemetry (libmyalloc) -->
+            <section class="card allocator-overview" aria-labelledby="heading-allocator">
+                <div class="card-header">
+                    <div class="header-title-row">
+                        <h2 id="heading-allocator">Allocator Live Telemetry</h2>
+                        <span class="badge badge-gold">libmyalloc.so</span>
+                    </div>
+                    <span class="card-caption">Boundary Tags &bull; Segregated Free-List (8 Classes) &bull; 16-Byte Aligned</span>
+                </div>
+                <div class="allocator-grid">
+                    <div class="alloc-stat-card">
+                        <div class="stat-label">Active Allocations</div>
+                        <div class="stat-value" id="alloc-active">--</div>
+                        <div class="stat-sub" id="alloc-active-sub">Live Heap Blocks</div>
+                    </div>
+                    <div class="alloc-stat-card">
+                        <div class="stat-label">Total Allocated</div>
+                        <div class="stat-value" id="alloc-total">--</div>
+                        <div class="stat-sub" id="alloc-total-sub">Cumulative Requested</div>
+                    </div>
+                    <div class="alloc-stat-card">
+                        <div class="stat-label">Total Freed</div>
+                        <div class="stat-value" id="alloc-freed">--</div>
+                        <div class="stat-sub" id="alloc-freed-sub">Coalesced &amp; Reclaimed</div>
+                    </div>
+                    <div class="alloc-stat-card">
+                        <div class="stat-label">Heap / Arenas</div>
+                        <div class="stat-value" id="alloc-arenas">--</div>
+                        <div class="stat-sub" id="alloc-arenas-sub">sbrk() &amp; mmap() Pools</div>
+                    </div>
+                </div>
+                <div class="allocator-specs-bar">
+                    <div class="spec-pill">
+                        <span class="spec-dot spec-dot-gold"></span>
+                        <span class="spec-text">Canaries: <code>0xDEADBEEF</code> / <code>0xBEEFDEAD</code></span>
+                    </div>
+                    <div class="spec-pill">
+                        <span class="spec-dot spec-dot-patina"></span>
+                        <span class="spec-text">Segregated Fit: 8 Classes (&le;128B to &le;128KB)</span>
+                    </div>
+                    <div class="spec-pill">
+                        <span class="spec-dot spec-dot-cyan"></span>
+                        <span class="spec-text">Large Allocations: &ge;128 KiB Anonymous mmap</span>
+                    </div>
+                    <div class="spec-pill">
+                        <span class="spec-dot spec-dot-emerald"></span>
+                        <span class="spec-text">Coalescing: Bidirectional Instant Splitting</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Process Manager Table Card -->
+            <section class="card process-section" aria-labelledby="heading-processes">
+                <div class="section-header">
+                    <div class="section-title-wrap">
+                        <h2 id="heading-processes">Active Processes</h2>
+                        <span class="process-counter-badge"><span id="process-count">0</span> tracked</span>
+                    </div>
+                    <div class="table-controls">
+                        <div class="filter-pills" role="radiogroup" aria-label="Process quick filters">
+                            <button type="button" class="filter-pill active" data-filter="all">All</button>
+                            <button type="button" class="filter-pill" data-filter="high-cpu">CPU &gt; 1%</button>
+                            <button type="button" class="filter-pill" data-filter="high-mem">RSS &gt; 10MB</button>
+                        </div>
+                        <div class="search-box">
+                            <span class="search-icon" aria-hidden="true">&#9906;</span>
+                            <input type="text" id="proc-search" placeholder="Filter PID or Command..." class="search-input" aria-label="Filter processes">
+                        </div>
+                        <div class="select-box">
+                            <select id="sort-select" class="select-input" aria-label="Sort processes by column">
+                                <option value="cpu">Sort by CPU %</option>
+                                <option value="mem">Sort by Memory (RSS)</option>
+                                <option value="pid">Sort by PID</option>
+                                <option value="threads">Sort by Threads</option>
+                                <option value="comm">Sort by Command Name</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive" tabindex="0" aria-label="Process Table Container">
+                    <table class="proc-table" aria-label="Processes List">
+                        <thead>
+                            <tr>
+                                <th class="col-pid sortable" data-sort="pid" title="Sort by PID">PID <span class="sort-indicator"></span></th>
+                                <th class="col-comm sortable" data-sort="comm" title="Sort by Command">Command <span class="sort-indicator"></span></th>
+                                <th class="col-state">State</th>
+                                <th class="col-threads sortable" data-sort="threads" title="Sort by Threads">Threads <span class="sort-indicator"></span></th>
+                                <th class="col-cpu sortable" data-sort="cpu" title="Sort by CPU %">CPU % <span class="sort-indicator"></span></th>
+                                <th class="col-rss sortable" data-sort="mem" title="Sort by Memory RSS">RSS (KB) <span class="sort-indicator"></span></th>
+                                <th class="col-actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="proc-tbody">
+                            <tr>
+                                <td colspan="7" class="text-center table-loading">Awaiting telemetry stream...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-left">
+                <span>Linux Dynamic Memory Allocator &amp; Telemetry Daemon</span>
+                <span class="footer-separator">&bull;</span>
+                <span class="security-tag">Protected POSIX Control Plane</span>
             </div>
-        </section>
-    </main>
+            <div class="footer-right">
+                <span class="footer-meta">PID &le; 1 Blocked &bull; Constant-Time Crypto Token Auth</span>
+            </div>
+        </footer>
+    </div>
 
     <!-- Signal Confirmation Modal -->
-    <div id="signal-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>Dispatch POSIX Signal</h3>
-            <p>Target Process: <strong id="modal-proc-name"></strong> (PID: <span id="modal-pid"></span>)</p>
-            <div class="signal-buttons">
-                <button class="btn btn-warning signal-btn" data-signal="SIGSTOP">SIGSTOP (Pause)</button>
-                <button class="btn btn-info signal-btn" data-signal="SIGCONT">SIGCONT (Resume)</button>
-                <button class="btn btn-primary signal-btn" data-signal="SIGTERM">SIGTERM (Terminate)</button>
-                <button class="btn btn-danger signal-btn" data-signal="SIGKILL">SIGKILL (Force Kill)</button>
+    <div id="signal-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <div class="modal-icon-badge" aria-hidden="true">&#9888;</div>
+                <h3 id="modal-title">Dispatch POSIX Signal</h3>
+                <button id="close-modal-x" class="modal-close-x" aria-label="Close dialog">&times;</button>
             </div>
-            <button id="close-modal-btn" class="btn btn-secondary close-modal">Cancel</button>
+            <div class="modal-body">
+                <p class="target-summary">Target Process: <strong id="modal-proc-name">--</strong></p>
+                <div class="pid-badge-container">
+                    <span class="pid-label">PID:</span>
+                    <span id="modal-pid" class="pid-value">--</span>
+                </div>
+                <div class="signal-warning">
+                    Ensure correct target process. Signals directly manipulate kernel process states.
+                </div>
+                <div class="signal-buttons">
+                    <button type="button" class="btn btn-warning signal-btn" data-signal="SIGSTOP">
+                        <span class="sig-name">SIGSTOP</span>
+                        <span class="sig-desc">Pause Process</span>
+                    </button>
+                    <button type="button" class="btn btn-info signal-btn" data-signal="SIGCONT">
+                        <span class="sig-name">SIGCONT</span>
+                        <span class="sig-desc">Resume Process</span>
+                    </button>
+                    <button type="button" class="btn btn-primary signal-btn" data-signal="SIGTERM">
+                        <span class="sig-name">SIGTERM</span>
+                        <span class="sig-desc">Graceful Terminate</span>
+                    </button>
+                    <button type="button" class="btn btn-danger signal-btn" data-signal="SIGKILL">
+                        <span class="sig-name">SIGKILL</span>
+                        <span class="sig-desc">Force Immediate Kill</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="close-modal-btn" class="btn btn-secondary close-modal">Cancel</button>
+            </div>
         </div>
     </div>
 
